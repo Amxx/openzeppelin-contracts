@@ -32,7 +32,6 @@ library Create2 {
         bytes memory bytecode
     ) internal returns (address) {
         address addr;
-        require(address(this).balance >= amount, "Create2: insufficient balance");
         require(bytecode.length != 0, "Create2: bytecode length is zero");
         assembly {
             addr := create2(amount, add(bytecode, 0x20), mload(bytecode), salt)
