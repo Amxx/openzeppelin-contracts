@@ -12,6 +12,7 @@
   },
   "scripts": {
     "compile": "hardhat compile",
+    "compile:ovm": "env TARGET=ovm hardhat compile",
     "coverage": "hardhat coverage",
     "docs": "oz-docs",
     "docs:watch": "npm run docs watch contracts 'docs/*.hbs' docs/helpers.js",
@@ -28,6 +29,7 @@
     "release": "scripts/release/release.sh",
     "version": "scripts/release/version.sh",
     "test": "hardhat test",
+    "test:ovm": "env TARGET=ovm hardhat test",
     "test:inheritance": "node scripts/inheritanceOrdering artifacts/build-info/*",
     "gas-report": "env ENABLE_GAS_REPORT=true npm run test"
   },
@@ -50,6 +52,8 @@
   },
   "homepage": "https://openzeppelin.com/contracts/",
   "devDependencies": {
+    "@eth-optimism/plugins": "*",
+    "@nomiclabs/hardhat-solhint": "^2.0.0",
     "@nomiclabs/hardhat-truffle5": "^2.0.0",
     "@nomiclabs/hardhat-web3": "^2.0.0",
     "@openzeppelin/docs-utils": "^0.1.0",

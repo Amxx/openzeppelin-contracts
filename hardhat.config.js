@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const argv = require('yargs/yargs')()
   .env('')
+  .option('target', { type: 'choice', default: 'evm', choices: ['evm', 'ovm'] })
   .boolean('enableGasReport')
   .boolean('ci')
   .string('compileMode')
@@ -14,6 +15,10 @@ const argv = require('yargs/yargs')()
 
 require('@nomiclabs/hardhat-truffle5');
 require('solidity-coverage');
+
+if (argv.target === 'ovm') {
+  require('@eth-optimism/plugins/hardhat/compiler');
+}
 
 if (argv.enableGasReport) {
   require('hardhat-gas-reporter');
@@ -39,6 +44,7 @@ module.exports = {
   networks: {
     hardhat: {
       blockGasLimit: 10000000,
+      ovm: argv.target === 'ovm',
     },
   },
   gasReporter: {
