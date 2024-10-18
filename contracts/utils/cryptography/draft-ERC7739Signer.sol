@@ -67,42 +67,30 @@ abstract contract ERC7739Signer is EIP712, IERC1271 {
             bytes calldata signature,
             bytes32 appSeparator,
             bytes32 contentsHash,
-            string calldata contentsType
+            string calldata contentsDescr,
+            uint16 domainOffset
         ) = encodedSignature.decodeTypedDataSig();
 
-        // Check that contentHash and separator are correct
-        if (hash == appSeparator.toTypedDataHash(contentsHash)) {
-            // fetch domain details
-            (
-                bytes1 fields,
-                string memory name,
-                string memory version,
-                ,
-                address verifyingContract,
-                bytes32 salt,
-                uint256[] memory extensions
-            ) = eip712Domain();
+        // decode contents type descriptor
+        (string calldata contentsTypeName, string calldata contentsType) = contentsDescr.decodeContentsDescr();
 
-            // Rebuild nested hash
-            return
-                _validateSignature(
-                    appSeparator.toTypedDataHash(
-                        ERC7739Utils.typedDataSignStructHash(
-                            contentsType,
-                            contentsHash,
-                            fields,
-                            name,
-                            version,
-                            verifyingContract,
-                            salt,
-                            extensions
-                        )
-                    ),
-                    signature
-                );
-        } else {
-            return false;
-        }
+        // data was parsed correctly
+        // ... and contentHash and separator math the requested hash
+        // ... and signature of the TypedDataSign object is correct
+        return
+            bytes(contentsTypeName).length != 0 &&
+            hash == appSeparator.toTypedDataHash(contentsHash) &&
+            _validateSignature(
+                appSeparator.toTypedDataHash(
+                    ERC7739Utils.typedDataSignStructHash(
+                        contentsTypeName,
+                        string.concat(contentsType[:domainOffset], EIP712DOMAIN_TYPE, contentsType[domainOffset:]),
+                        contentsHash,
+                        _domainSeparatorV4()
+                    )
+                ),
+                signature
+            );
     }
 
     /**

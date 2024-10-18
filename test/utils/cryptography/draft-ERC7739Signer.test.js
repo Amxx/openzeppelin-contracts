@@ -2,14 +2,11 @@ const { ethers } = require('hardhat');
 const { expect } = require('chai');
 const { loadFixture } = require('@nomicfoundation/hardhat-network-helpers');
 
-const { getDomain, Permit } = require('../../helpers/eip712');
+const { getDomain, formatType, Permit } = require('../../helpers/eip712');
 const { PersonalSignHelper, TypedDataSignHelper } = require('../../helpers/erc7739');
 
 // Constant
 const MAGIC_VALUE = '0x1626ba7e';
-
-// SignedTypedData helpers for a ERC20Permit application.
-const helper = TypedDataSignHelper.from({ Permit });
 
 // Fixture
 async function fixture() {
@@ -54,29 +51,57 @@ describe('ERC7739Signer', function () {
           chainId: this.domain.chainId,
           verifyingContract: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
         };
-        this.appMessage = {
+      });
+
+      it('returns true for a valid typed data signature', async function () {
+        const contents = {
           owner: '0x1ab5E417d9AF00f1ca9d159007e12c401337a4bb',
           spender: '0xD68E96620804446c4B1faB3103A08C98d4A8F55f',
           value: 1_000_000n,
           nonce: 0n,
           deadline: ethers.MaxUint256,
         };
-        this.appHash = helper.hash(this.appMessage, this.appDomain);
+        const message = { contents, signerDomain: this.domain };
+
+        const hash = ethers.TypedDataEncoder.hash(this.appDomain, { Permit }, message.contents);
+        const signature = await TypedDataSignHelper.sign(this.eoa, this.appDomain, { Permit }, message);
+
+        expect(await this.mock.isValidSignature(hash, signature)).to.equal(MAGIC_VALUE);
       });
 
-      it('returns true for a valid typed data signature', async function () {
-        const message = TypedDataSignHelper.prepare(this.appMessage, this.domain);
-        const signature = await helper.sign(this.eoa, message, this.appDomain);
+      it('returns true for valid typed data signature (nested types)', async function () {
+        const contentsTypes = {
+          B: formatType({ z: 'Z' }),
+          Z: formatType({ a: 'A' }),
+          A: formatType({ v: 'uint256' }),
+        };
 
-        expect(await this.mock.isValidSignature(this.appHash, signature)).to.equal(MAGIC_VALUE);
+        const message = {
+          contents: { z: { a: { v: 1n } } },
+          signerDomain: this.domain,
+        };
+
+        const hash = TypedDataSignHelper.hash(this.appDomain, contentsTypes, message.contents);
+        const signature = await TypedDataSignHelper.sign(this.eoa, this.appDomain, contentsTypes, message);
+
+        expect(await this.mock.isValidSignature(hash, signature)).to.equal(MAGIC_VALUE);
       });
 
       it('returns false for an invalid typed data signature', async function () {
-        // signed message is for a lower value.
-        const message = TypedDataSignHelper.prepare({ ...this.appMessage, value: 1n }, this.domain);
-        const signature = await helper.sign(this.eoa, message, this.appDomain);
+        const contents = {
+          owner: '0x1ab5E417d9AF00f1ca9d159007e12c401337a4bb',
+          spender: '0xD68E96620804446c4B1faB3103A08C98d4A8F55f',
+          value: 1_000_000n,
+          nonce: 0n,
+          deadline: ethers.MaxUint256,
+        };
+        // message signed by the user is for a lower amount.
+        const message = { contents: { ...contents, value: 1_000n }, signerDomain: this.domain };
 
-        expect(await this.mock.isValidSignature(this.appHash, signature)).to.not.equal(MAGIC_VALUE);
+        const hash = ethers.TypedDataEncoder.hash(this.appDomain, { Permit }, message.contents);
+        const signature = await TypedDataSignHelper.sign(this.eoa, this.appDomain, { Permit }, message);
+
+        expect(await this.mock.isValidSignature(hash, signature)).to.equal(MAGIC_VALUE);
       });
     });
   });

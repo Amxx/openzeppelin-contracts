@@ -34,7 +34,9 @@ import {IERC5267} from "../../interfaces/IERC5267.sol";
 abstract contract EIP712 is IERC5267 {
     using ShortStrings for *;
 
-    bytes32 private constant TYPE_HASH =
+    string internal constant EIP712DOMAIN_TYPE =
+        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)";
+    bytes32 internal constant EIP712DOMAIN_TYPE_HASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     // Cache the domain separator as an immutable value, but also store the chain id that it corresponds to, in order to
@@ -86,7 +88,7 @@ abstract contract EIP712 is IERC5267 {
     }
 
     function _buildDomainSeparator() private view returns (bytes32) {
-        return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, block.chainid, address(this)));
+        return keccak256(abi.encode(EIP712DOMAIN_TYPE_HASH, _hashedName, _hashedVersion, block.chainid, address(this)));
     }
 
     /**

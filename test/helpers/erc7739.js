@@ -1,5 +1,5 @@
 const { ethers } = require('hardhat');
-const { domainSeparator, formatType } = require('./eip712');
+const { domainType, formatType } = require('./eip712');
 
 class PersonalSignHelper {
   static types = { PersonalSign: formatType({ prefixed: 'bytes' }) };
@@ -25,58 +25,59 @@ class PersonalSignHelper {
 
 class TypedDataSignHelper {
   constructor(contentsTypes, contentsTypeName = Object.keys(contentsTypes).at(0)) {
-    this.allTypes = {
-      TypedDataSign: formatType({
-        contents: contentsTypeName,
-        fields: 'bytes1',
-        name: 'string',
-        version: 'string',
-        chainId: 'uint256',
-        verifyingContract: 'address',
-        salt: 'bytes32',
-        extensions: 'uint256[]',
-      }),
-      ...contentsTypes,
-    };
-    this.types = contentsTypes;
+    this.contentsTypes = contentsTypes;
     this.contentsTypeName = contentsTypeName;
-    this.contentsType = ethers.TypedDataEncoder.from(this.types).encodeType(contentsTypeName);
   }
 
   static from(contentsTypes, contentsTypeName = Object.keys(contentsTypes).at(0)) {
     return new TypedDataSignHelper(contentsTypes, contentsTypeName);
   }
 
-  static prepare(contents, signerDomain) {
-    return Object.assign(
-      {
-        contents,
-        fields: '0x0f',
-        salt: ethers.ZeroHash,
-        extensions: [],
-      },
-      signerDomain,
-    );
+  hash(domain, message) {
+    return message.signerDomain
+      ? ethers.TypedDataEncoder.hash(domain, this.#allTypes(message), message)
+      : ethers.TypedDataEncoder.hash(domain, this.contentsTypes, message);
   }
 
-  hash(data, appDomain) {
-    try {
-      return ethers.TypedDataEncoder.hash(appDomain, this.allTypes, data);
-    } catch {
-      return ethers.TypedDataEncoder.hash(appDomain, this.types, data);
-    }
+  sign(signer, domain, message) {
+    const types = this.#allTypes(message);
+    const typedDataSignType = ethers.TypedDataEncoder.from(types).encodeType('TypedDataSign');
+    const signerDomainType = ethers.TypedDataEncoder.from(types).encodeType('EIP712Domain');
+    const contentsAndDomainType = typedDataSignType.slice(typedDataSignType.indexOf(')') + 1); // Remove TypedDataSign (first object)
+    const domainOffset = contentsAndDomainType.indexOf(signerDomainType);
+    const contentsType = contentsAndDomainType.replace(signerDomainType, ''); // Remove EIP712Domain
+    const contentsDescr = contentsType + (contentsType.startsWith(this.contentsTypeName) ? '' : this.contentsTypeName);
+    const contentsDescrLength = contentsDescr.length;
+
+    return signer
+      .signTypedData(domain, types, message)
+      .then(signature =>
+        ethers.concat([
+          signature,
+          ethers.TypedDataEncoder.hashDomain(domain),
+          ethers.TypedDataEncoder.hashStruct(this.contentsTypeName, types, message.contents),
+          ethers.toUtf8Bytes(contentsDescr),
+          ethers.toBeHex(domainOffset, 2),
+          ethers.toBeHex(contentsDescrLength, 2),
+        ]),
+      );
   }
 
-  sign(signer, data, appDomain) {
-    return Promise.resolve(signer.signTypedData(appDomain, this.allTypes, data)).then(signature =>
-      ethers.concat([
-        signature,
-        domainSeparator(appDomain),
-        ethers.TypedDataEncoder.hashStruct(this.contentsTypeName, this.types, data.contents),
-        ethers.toUtf8Bytes(this.contentsType),
-        ethers.toBeHex(this.contentsType.length, 2),
-      ]),
-    );
+  static hash(domain, types, message) {
+    return TypedDataSignHelper.from(types).hash(domain, message);
+  }
+
+  static sign(signer, domain, types, message) {
+    return TypedDataSignHelper.from(types).sign(signer, domain, message);
+  }
+
+  // internal
+  #allTypes(message) {
+    return {
+      TypedDataSign: formatType({ contents: this.contentsTypeName, signerDomain: 'EIP712Domain' }),
+      EIP712Domain: domainType(message.signerDomain),
+      ...this.contentsTypes,
+    };
   }
 }
 
