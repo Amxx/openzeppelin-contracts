@@ -15,7 +15,11 @@ async function fixture() {
   const mock = await ethers.deployContract('$ERC7739SignerMock', [eoa]);
   const domain = await getDomain(mock);
 
-  return { eoa, mock, domain };
+  return {
+    mock,
+    domain,
+    signTypedData: eoa.signTypedData.bind(eoa),
+  };
 }
 
 describe('ERC7739Signer', function () {
@@ -29,14 +33,14 @@ describe('ERC7739Signer', function () {
         const text = 'Hello, world!';
 
         const hash = PersonalSignHelper.hash(text);
-        const signature = await PersonalSignHelper.sign(this.eoa, text, this.domain);
+        const signature = await PersonalSignHelper.sign(this.signTypedData, text, this.domain);
 
         expect(await this.mock.isValidSignature(hash, signature)).to.equal(MAGIC_VALUE);
       });
 
       it('returns false for an invalid personal signature', async function () {
         const hash = PersonalSignHelper.hash('Message the app expects');
-        const signature = await PersonalSignHelper.sign(this.eoa, 'Message signed is different', this.domain);
+        const signature = await PersonalSignHelper.sign(this.signTypedData, 'Message signed is different', this.domain);
 
         expect(await this.mock.isValidSignature(hash, signature)).to.not.equal(MAGIC_VALUE);
       });
@@ -64,7 +68,7 @@ describe('ERC7739Signer', function () {
         const message = { contents, signerDomain: this.domain };
 
         const hash = ethers.TypedDataEncoder.hash(this.appDomain, { Permit }, message.contents);
-        const signature = await TypedDataSignHelper.sign(this.eoa, this.appDomain, { Permit }, message);
+        const signature = await TypedDataSignHelper.sign(this.signTypedData, this.appDomain, { Permit }, message);
 
         expect(await this.mock.isValidSignature(hash, signature)).to.equal(MAGIC_VALUE);
       });
@@ -82,7 +86,7 @@ describe('ERC7739Signer', function () {
         };
 
         const hash = TypedDataSignHelper.hash(this.appDomain, contentsTypes, message.contents);
-        const signature = await TypedDataSignHelper.sign(this.eoa, this.appDomain, contentsTypes, message);
+        const signature = await TypedDataSignHelper.sign(this.signTypedData, this.appDomain, contentsTypes, message);
 
         expect(await this.mock.isValidSignature(hash, signature)).to.equal(MAGIC_VALUE);
       });
@@ -99,7 +103,7 @@ describe('ERC7739Signer', function () {
         const message = { contents: { ...contents, value: 1_000n }, signerDomain: this.domain };
 
         const hash = ethers.TypedDataEncoder.hash(this.appDomain, { Permit }, message.contents);
-        const signature = await TypedDataSignHelper.sign(this.eoa, this.appDomain, { Permit }, message);
+        const signature = await TypedDataSignHelper.sign(this.signTypedData, this.appDomain, { Permit }, message);
 
         expect(await this.mock.isValidSignature(hash, signature)).to.equal(MAGIC_VALUE);
       });

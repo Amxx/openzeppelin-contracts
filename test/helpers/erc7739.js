@@ -18,8 +18,8 @@ class PersonalSignHelper {
     return message.prefixed ? ethers.keccak256(message.prefixed) : ethers.hashMessage(message);
   }
 
-  static sign(signer, data, signerDomain) {
-    return signer.signTypedData(signerDomain, this.types, data.prefixed ? data : this.prepare(data));
+  static sign(signTypedData, data, signerDomain) {
+    return signTypedData(signerDomain, this.types, data.prefixed ? data : this.prepare(data));
   }
 }
 
@@ -39,7 +39,23 @@ class TypedDataSignHelper {
       : ethers.TypedDataEncoder.hash(domain, this.contentsTypes, message);
   }
 
-  sign(signer, domain, message) {
+  sign(signTypedData, domain, message) {
+    // Examples values
+    //
+    // contentsTypeName         B
+    // typedDataSignType        TypedDataSign(B contents,EIP712Domain signerDomain)A(uint256 v)B(Z z)EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)Z(A a)
+    // signerDomainType         EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)
+    // contentsAndDomainType    A(uint256 v)B(Z z)EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)Z(A a)
+    // contentsType             A(uint256 v)B(Z z)Z(A a)
+    // contentsDescr            A(uint256 v)B(Z z)Z(A a)B
+    //
+    // to rebuild the signer must:
+    // 1. detect implicit / explicit mode in `contentsDescr`
+    // 2. extract `contentsType` and `contentsTypeName` from `contentsDescr` (depending on the mode)
+    // 3. inject `signerDomainType` (that must be known by the signer) into `contentsType` at `domainOffset`
+    // => That gives `contentsAndDomainType`
+    // 4. prefix `contentsAndDomainType` with a rebuild "TypedDataSign(B contents,EIP712Domain signerDomain)" (that is done using the `contentsTypeName` from step 2) ->
+    // => That gives `typedDataSignType` which is what we need to hash with `contentsHash` and the signer domain separator (that is know by the signer)
     const types = this.#allTypes(message);
     const typedDataSignType = ethers.TypedDataEncoder.from(types).encodeType('TypedDataSign');
     const signerDomainType = ethers.TypedDataEncoder.from(types).encodeType('EIP712Domain');
@@ -49,18 +65,16 @@ class TypedDataSignHelper {
     const contentsDescr = contentsType + (contentsType.startsWith(this.contentsTypeName) ? '' : this.contentsTypeName);
     const contentsDescrLength = contentsDescr.length;
 
-    return signer
-      .signTypedData(domain, types, message)
-      .then(signature =>
-        ethers.concat([
-          signature,
-          ethers.TypedDataEncoder.hashDomain(domain),
-          ethers.TypedDataEncoder.hashStruct(this.contentsTypeName, types, message.contents),
-          ethers.toUtf8Bytes(contentsDescr),
-          ethers.toBeHex(domainOffset, 2),
-          ethers.toBeHex(contentsDescrLength, 2),
-        ]),
-      );
+    return Promise.resolve(signTypedData(domain, types, message)).then(signature =>
+      ethers.concat([
+        signature,
+        ethers.TypedDataEncoder.hashDomain(domain), // appDomainSeparator
+        ethers.TypedDataEncoder.hashStruct(this.contentsTypeName, types, message.contents), // contentsHash
+        ethers.toUtf8Bytes(contentsDescr),
+        ethers.toBeHex(domainOffset, 2),
+        ethers.toBeHex(contentsDescrLength, 2),
+      ]),
+    );
   }
 
   static hash(domain, types, message) {
