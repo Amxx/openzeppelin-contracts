@@ -80,10 +80,8 @@ describe('ERC7739Signer', function () {
           A: formatType({ v: 'uint256' }),
         };
 
-        const message = {
-          contents: { z: { a: { v: 1n } } },
-          signerDomain: this.domain,
-        };
+        const contents = { z: { a: { v: 1n } } };
+        const message = { contents, signerDomain: this.domain };
 
         const hash = TypedDataSignHelper.hash(this.appDomain, contentsTypes, message.contents);
         const signature = await TypedDataSignHelper.sign(this.signTypedData, this.appDomain, contentsTypes, message);
@@ -92,7 +90,7 @@ describe('ERC7739Signer', function () {
       });
 
       it('returns false for an invalid typed data signature', async function () {
-        const contents = {
+        const appContents = {
           owner: '0x1ab5E417d9AF00f1ca9d159007e12c401337a4bb',
           spender: '0xD68E96620804446c4B1faB3103A08C98d4A8F55f',
           value: 1_000_000n,
@@ -100,12 +98,12 @@ describe('ERC7739Signer', function () {
           deadline: ethers.MaxUint256,
         };
         // message signed by the user is for a lower amount.
-        const message = { contents: { ...contents, value: 1_000n }, signerDomain: this.domain };
+        const message = { contents: { ...appContents, value: 1_000n }, signerDomain: this.domain };
 
-        const hash = ethers.TypedDataEncoder.hash(this.appDomain, { Permit }, message.contents);
+        const hash = ethers.TypedDataEncoder.hash(this.appDomain, { Permit }, appContents);
         const signature = await TypedDataSignHelper.sign(this.signTypedData, this.appDomain, { Permit }, message);
 
-        expect(await this.mock.isValidSignature(hash, signature)).to.equal(MAGIC_VALUE);
+        expect(await this.mock.isValidSignature(hash, signature)).to.not.equal(MAGIC_VALUE);
       });
     });
   });
