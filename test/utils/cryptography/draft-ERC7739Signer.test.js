@@ -49,11 +49,13 @@ describe('ERC7739Signer', function () {
     describe('TypedDataSign', async function () {
       beforeEach(async function () {
         // Dummy app domain, different from the ERC7739Signer's domain
+        // Note the difference of format (signer domain doesn't include a salt, but app domain does)
         this.appDomain = {
           name: 'SomeApp',
           version: '1',
           chainId: this.domain.chainId,
           verifyingContract: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
+          salt: '0x02cb3d8cb5e8928c9c6de41e935e16a4e28b2d54e7e7ba47e99f16071efab785',
         };
       });
 
