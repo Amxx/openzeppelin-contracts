@@ -41,10 +41,10 @@ library ERC7739Utils {
         bytes memory signature,
         bytes32 appSeparator,
         bytes32 contentsHash,
-        string memory contentsType
+        string memory contentsDescr
     ) internal pure returns (bytes memory) {
         return
-            abi.encodePacked(signature, appSeparator, contentsHash, contentsType, uint16(bytes(contentsType).length));
+            abi.encodePacked(signature, appSeparator, contentsHash, contentsDescr, uint16(bytes(contentsDescr).length));
     }
 
     /**
@@ -52,41 +52,39 @@ library ERC7739Utils {
      *
      * Constructed as follows:
      *
-     * `signature ‖ DOMAIN_SEPARATOR ‖ contentsHash ‖ contentsType ‖ uint16(contentsType.length)`
+     * `signature ‖ DOMAIN_SEPARATOR ‖ contentsHash ‖ contentsDescr ‖ uint16(contentsDescr.length)`
      *
      * - `signature` is the original signature for the nested struct hash that includes the `contents` hash
      * - `DOMAIN_SEPARATOR` is the EIP-712 {EIP712-_domainSeparatorV4} of the smart contract verifying the signature
      * - `contentsHash` is the hash of the underlying data structure or message
-     * - `contentsType` is the EIP-712 type of the nested signature (e.g. {typedDataSignTypehash} or {PERSONAL_SIGN_TYPEHASH})
+     * - `contentsDescr` is a descriptor of the "contents" part of the the EIP-712 type of the nested signature
      */
     function decodeTypedDataSig(
         bytes calldata encodedSignature
     )
         internal
         pure
-        returns (bytes calldata signature, bytes32 appSeparator, bytes32 contentsHash, string calldata contentsType)
+        returns (bytes calldata signature, bytes32 appSeparator, bytes32 contentsHash, string calldata contentsDescr)
     {
         unchecked {
             uint256 sigLength = encodedSignature.length;
 
-            if (sigLength < 66) return (_emptyCalldataBytes(), 0, 0, _emptyCalldataString());
+            if (sigLength < 4) return (_emptyCalldataBytes(), 0, 0, _emptyCalldataString());
 
-            uint256 contentsTypeEnd = sigLength - 2; // Last 2 bytes
-            uint256 contentsTypeLength = uint16(bytes2(encodedSignature[contentsTypeEnd:]));
+            uint256 contentsDescrEnd = sigLength - 2; // Last 2 bytes
+            uint256 contentsDescrLength = uint16(bytes2(encodedSignature[contentsDescrEnd:]));
 
-            if (contentsTypeLength > contentsTypeEnd) return (_emptyCalldataBytes(), 0, 0, _emptyCalldataString());
+            if (contentsDescrLength + 64 > contentsDescrEnd)
+                return (_emptyCalldataBytes(), 0, 0, _emptyCalldataString());
 
-            uint256 contentsEnd = contentsTypeEnd - contentsTypeLength;
-
-            if (contentsEnd < 64) return (_emptyCalldataBytes(), 0, 0, _emptyCalldataString());
-
-            uint256 separatorEnd = contentsEnd - 32;
+            uint256 contentsHashEnd = contentsDescrEnd - contentsDescrLength;
+            uint256 separatorEnd = contentsHashEnd - 32;
             uint256 signatureEnd = separatorEnd - 32;
 
             signature = encodedSignature[:signatureEnd];
             appSeparator = bytes32(encodedSignature[signatureEnd:separatorEnd]);
-            contentsHash = bytes32(encodedSignature[separatorEnd:contentsEnd]);
-            contentsType = string(encodedSignature[contentsEnd:contentsTypeEnd]);
+            contentsHash = bytes32(encodedSignature[separatorEnd:contentsHashEnd]);
+            contentsDescr = string(encodedSignature[contentsHashEnd:contentsDescrEnd]);
         }
     }
 
@@ -107,106 +105,99 @@ library ERC7739Utils {
      * before being verified/recovered.
      */
     function typedDataSignStructHash(
+        string calldata contentsTypeName,
         string calldata contentsType,
         bytes32 contentsHash,
-        bytes1 fields,
-        string memory name,
-        string memory version,
-        address verifyingContract,
-        bytes32 salt,
-        uint256[] memory extensions
-    ) internal view returns (bytes32 result) {
-        string calldata contentsTypeName = tryValidateContentsType(contentsType);
+        string memory domainType,
+        bytes memory domainBytes
+    ) internal pure returns (bytes32 result) {
+        return
+            bytes(contentsTypeName).length == 0
+                ? bytes32(0)
+                : keccak256(
+                    abi.encodePacked(
+                        typedDataSignTypehash(contentsTypeName, contentsType, domainType),
+                        contentsHash,
+                        domainBytes
+                    )
+                );
+    }
 
-        if (bytes(contentsTypeName).length == 0) {
-            result = bytes32(0);
-        } else {
-            bytes32 typehash = typedDataSignTypehash(contentsType, contentsTypeName);
-            bytes32 extensionsHash = keccak256(abi.encodePacked(extensions));
+    /**
+     * @dev Variant of {typedDataSignStructHash-string-string-bytes32-string-bytes} that takes a content descriptor
+     * and decodes the `contentsTypeName` and `contentsType` out of it.
+     */
+    function typedDataSignStructHash(
+        string calldata contentsDescr,
+        bytes32 contentsHash,
+        string memory domainType,
+        bytes memory domainBytes
+    ) internal pure returns (bytes32 result) {
+        (string calldata contentsTypeName, string calldata contentsType) = decodeContentsDescr(contentsDescr);
 
-            assembly ("memory-safe") {
-                let ptr := mload(0x40)
-                mstore(ptr, typehash)
-                mstore(add(ptr, 0x020), contentsHash)
-                mstore(add(ptr, 0x040), fields)
-                mstore(add(ptr, 0x060), keccak256(add(name, 0x20), mload(name)))
-                mstore(add(ptr, 0x080), keccak256(add(version, 0x20), mload(version)))
-                mstore(add(ptr, 0x0a0), chainid())
-                mstore(add(ptr, 0x0c0), verifyingContract)
-                mstore(add(ptr, 0x0e0), salt)
-                mstore(add(ptr, 0x100), extensionsHash)
-                result := keccak256(ptr, 0x120)
-            }
-        }
+        return typedDataSignStructHash(contentsTypeName, contentsType, contentsHash, domainType, domainBytes);
     }
 
     /**
      * @dev Compute the EIP-712 typehash of the `TypedDataSign` structure for a given type (and typename).
      */
     function typedDataSignTypehash(
+        string calldata contentsTypeName,
         string calldata contentsType,
-        string calldata contentsTypeName
+        string memory domainType
     ) internal pure returns (bytes32) {
         return
             keccak256(
-                abi.encodePacked(
-                    "TypedDataSign(",
-                    contentsTypeName,
-                    " contents,bytes1 fields,string name,string version,uint256 chainId,address verifyingContract,bytes32 salt,uint256[] extensions)",
-                    contentsType
-                )
+                abi.encodePacked("TypedDataSign(", contentsTypeName, " contents,", domainType, ")", contentsType)
             );
     }
 
     /**
-     * @dev Variant of {typedDataSignTypehash-string-string} that automatically parses the contents typename from the
-     * contents type definition.
+     * @dev Parse the type name out of the ERC-7739 contents type description. Supports both the implicit and explicit
+     * modes.
      *
-     * Requirements:
-     *  - `contentsType` must be a valid EIP-712 type (see {tryValidateContentsType})
-     */
-    function typedDataSignTypehash(string calldata contentsType) internal pure returns (bytes32) {
-        string calldata contentsTypeName = tryValidateContentsType(contentsType);
-        if (bytes(contentsTypeName).length == 0) revert InvalidContentsType();
-        return typedDataSignTypehash(contentsType, contentsTypeName);
-    }
-
-    /**
-     * @dev Parse the type name out of the EIP-712 type definition.
-     *
-     * Following ERC-7739 specifications, a `contentsType` is considered invalid if it's empty or it:
-     * - Starts with a-z or (
+     * Following ERC-7739 specifications, a `contentsTypeName` is considered invalid if it's empty or it:
      * - Contains any of the following bytes: , )\x00
      *
      * If the `contentsType` is invalid, this returns an empty string. Otherwize, the return string has non-zero
      * length.
      */
-    function tryValidateContentsType(
-        string calldata contentsType
-    ) internal pure returns (string calldata contentsTypeName) {
-        bytes calldata buffer = bytes(contentsType);
-
-        // Check the first character if it exists
-        if (buffer.length != 0) {
-            bytes1 first = buffer[0];
-            if ((first > 0x60 && first < 0x7b) || first == bytes1("(")) {
-                return _emptyCalldataString();
+    function decodeContentsDescr(
+        string calldata contentsDescr
+    ) internal pure returns (string calldata contentsTypeName, string calldata contentsType) {
+        bytes calldata buffer = bytes(contentsDescr);
+        if (buffer.length == 0) {
+            // pass though (fail)
+        } else if (buffer[buffer.length - 1] == bytes1(")")) {
+            // Implicit mode: read contentsTypeName for the begining, and keep the complete descr
+            for (uint256 i = 0; i < buffer.length; ++i) {
+                bytes1 current = buffer[i];
+                if (current == bytes1("(")) {
+                    // we found the end of the contentsTypeName
+                    return (string(buffer[:i]), contentsDescr);
+                } else if (
+                    current == 0x00 || current == bytes1(" ") || current == bytes1(",") || current == bytes1(")")
+                ) {
+                    // we found an invalid character (forbidden) - passthrough (fail)
+                    break;
+                }
+            }
+        } else {
+            // Explicit mode: read contentsTypeName for the end, and remove it from the descr
+            for (uint256 i = buffer.length; i > 0; --i) {
+                bytes1 current = buffer[i - 1];
+                if (current == bytes1(")")) {
+                    // we found the end of the contentsTypeName
+                    return (string(buffer[i:]), string(buffer[:i]));
+                } else if (
+                    current == 0x00 || current == bytes1(" ") || current == bytes1(",") || current == bytes1(")")
+                ) {
+                    // we found an invalid character (forbidden) - passthrough (fail)
+                    break;
+                }
             }
         }
-
-        // Loop over the contentsType, looking for the end of the contntsTypeName and validating the input as we go.
-        for (uint256 i = 0; i < buffer.length; ++i) {
-            bytes1 current = buffer[i];
-            if (current == bytes1("(")) {
-                // we found the end of the contentsTypeName
-                return string(buffer[:i]);
-            } else if (current == 0x00 || current == bytes1(" ") || current == bytes1(",") || current == bytes1(")")) {
-                // we found an invalid character (forbidden)
-                return _emptyCalldataString();
-            }
-        }
-        // We exited the loop without finding of the contentsTypeName
-        return _emptyCalldataString();
+        return (_emptyCalldataString(), _emptyCalldataString());
     }
 
     function _emptyCalldataBytes() private pure returns (bytes calldata result) {

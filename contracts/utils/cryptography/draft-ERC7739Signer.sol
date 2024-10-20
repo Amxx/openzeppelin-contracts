@@ -67,42 +67,24 @@ abstract contract ERC7739Signer is EIP712, IERC1271 {
             bytes calldata signature,
             bytes32 appSeparator,
             bytes32 contentsHash,
-            string calldata contentsType
+            string calldata contentsDescr
         ) = encodedSignature.decodeTypedDataSig();
 
         // Check that contentHash and separator are correct
-        if (hash == appSeparator.toTypedDataHash(contentsHash)) {
-            // fetch domain details
-            (
-                bytes1 fields,
-                string memory name,
-                string memory version,
-                ,
-                address verifyingContract,
-                bytes32 salt,
-                uint256[] memory extensions
-            ) = eip712Domain();
-
-            // Rebuild nested hash
-            return
-                _validateSignature(
-                    appSeparator.toTypedDataHash(
-                        ERC7739Utils.typedDataSignStructHash(
-                            contentsType,
-                            contentsHash,
-                            fields,
-                            name,
-                            version,
-                            verifyingContract,
-                            salt,
-                            extensions
-                        )
-                    ),
-                    signature
-                );
-        } else {
-            return false;
-        }
+        // Rebuild nested hash
+        return
+            hash == appSeparator.toTypedDataHash(contentsHash) &&
+            _validateSignature(
+                appSeparator.toTypedDataHash(
+                    ERC7739Utils.typedDataSignStructHash(
+                        contentsDescr,
+                        contentsHash,
+                        EIP712DOMAIN_TYPE_CONTENT,
+                        _buildDomainBytes()
+                    )
+                ),
+                signature
+            );
     }
 
     /**
