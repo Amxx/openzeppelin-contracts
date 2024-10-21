@@ -33,34 +33,34 @@ class TypedDataSignHelper {
     return new TypedDataSignHelper(contentsTypes, contentsTypeName);
   }
 
+  hashStruct(name, message) {
+    return message.contents
+      ? ethers.TypedDataEncoder.hashStruct(name, this.allTypes(message), message)
+      : ethers.TypedDataEncoder.hashStruct(name, this.contentsTypes, message);
+  }
+
   hash(domain, message) {
-    return message.signerDomain
-      ? ethers.TypedDataEncoder.hash(domain, this.#allTypes(message), message)
+    return message.contents
+      ? ethers.TypedDataEncoder.hash(domain, this.allTypes(message), message)
       : ethers.TypedDataEncoder.hash(domain, this.contentsTypes, message);
   }
 
   sign(signTypedData, domain, message) {
-    // Examples values
-    //
-    // contentsTypeName         B
-    // typedDataSignType        TypedDataSign(B contents,EIP712Domain signerDomain)A(uint256 v)B(Z z)Z(A a)
-    // contentsType             A(uint256 v)B(Z z)Z(A a)
-    // contentsDescr            A(uint256 v)B(Z z)Z(A a)B
-    const types = this.#allTypes(message);
-    const typedDataSignType = ethers.TypedDataEncoder.from(types).encodeType('TypedDataSign');
-    const contentsType = typedDataSignType.slice(typedDataSignType.indexOf(')') + 1); // Remove TypedDataSign (first object)
-    const contentsDescr = contentsType + (contentsType.startsWith(this.contentsTypeName) ? '' : this.contentsTypeName);
-    const contentsDescrLength = contentsDescr.length;
-
+    const types = this.allTypes(message);
+    const contentsDescr = this.contentsDescr(message);
     return Promise.resolve(signTypedData(domain, types, message)).then(signature =>
       ethers.concat([
         signature,
         ethers.TypedDataEncoder.hashDomain(domain), // appDomainSeparator
         ethers.TypedDataEncoder.hashStruct(this.contentsTypeName, types, message.contents), // contentsHash
         ethers.toUtf8Bytes(contentsDescr),
-        ethers.toBeHex(contentsDescrLength, 2),
+        ethers.toBeHex(contentsDescr.length, 2),
       ]),
     );
+  }
+
+  static hashStruct(name, types, message) {
+    return TypedDataSignHelper.from(types).hashStruct(name, message);
   }
 
   static hash(domain, types, message) {
@@ -71,8 +71,21 @@ class TypedDataSignHelper {
     return TypedDataSignHelper.from(types).sign(signer, domain, message);
   }
 
+  get contentDescr() {
+    // Examples values
+    //
+    // contentsTypeName         B
+    // typedDataSignType        TypedDataSign(B contents,...)A(uint256 v)B(Z z)Z(A a)
+    // contentsType             A(uint256 v)B(Z z)Z(A a)
+    // contentsDescr            A(uint256 v)B(Z z)Z(A a)B
+    const types = this.allTypes({});
+    const typedDataSignType = ethers.TypedDataEncoder.from(types).encodeType('TypedDataSign');
+    const contentsType = typedDataSignType.slice(typedDataSignType.indexOf(')') + 1); // Remove TypedDataSign (first object)
+    return contentsType + (contentsType.startsWith(this.contentsTypeName) ? '' : this.contentsTypeName);
+  }
+
   // internal
-  #allTypes(message) {
+  allTypes(message) {
     return {
       TypedDataSign: [...formatType({ contents: this.contentsTypeName }), ...domainType(message)],
       ...this.contentsTypes,

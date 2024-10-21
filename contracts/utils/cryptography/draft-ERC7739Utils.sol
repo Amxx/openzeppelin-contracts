@@ -108,7 +108,7 @@ library ERC7739Utils {
         string calldata contentsTypeName,
         string calldata contentsType,
         bytes32 contentsHash,
-        string memory domainType,
+        string memory domainComponentsType,
         bytes memory domainBytes
     ) internal pure returns (bytes32 result) {
         return
@@ -116,7 +116,7 @@ library ERC7739Utils {
                 ? bytes32(0)
                 : keccak256(
                     abi.encodePacked(
-                        typedDataSignTypehash(contentsTypeName, contentsType, domainType),
+                        typedDataSignTypehash(contentsTypeName, contentsType, domainComponentsType),
                         contentsHash,
                         domainBytes
                     )
@@ -130,12 +130,12 @@ library ERC7739Utils {
     function typedDataSignStructHash(
         string calldata contentsDescr,
         bytes32 contentsHash,
-        string memory domainType,
+        string memory domainComponentsType,
         bytes memory domainBytes
     ) internal pure returns (bytes32 result) {
         (string calldata contentsTypeName, string calldata contentsType) = decodeContentsDescr(contentsDescr);
 
-        return typedDataSignStructHash(contentsTypeName, contentsType, contentsHash, domainType, domainBytes);
+        return typedDataSignStructHash(contentsTypeName, contentsType, contentsHash, domainComponentsType, domainBytes);
     }
 
     /**
@@ -144,11 +144,18 @@ library ERC7739Utils {
     function typedDataSignTypehash(
         string calldata contentsTypeName,
         string calldata contentsType,
-        string memory domainType
+        string memory domainComponentsType
     ) internal pure returns (bytes32) {
         return
             keccak256(
-                abi.encodePacked("TypedDataSign(", contentsTypeName, " contents,", domainType, ")", contentsType)
+                abi.encodePacked(
+                    "TypedDataSign(",
+                    contentsTypeName,
+                    " contents,",
+                    domainComponentsType,
+                    ")",
+                    contentsType
+                )
             );
     }
 
@@ -173,11 +180,11 @@ library ERC7739Utils {
             for (uint256 i = 0; i < buffer.length; ++i) {
                 bytes1 current = buffer[i];
                 if (current == bytes1("(")) {
+                    // if name is empty, or first char of name is lowercase - passthrough (fail)
+                    if (i == 0 || _isForbiddenFirstChar(buffer[0])) break;
                     // we found the end of the contentsTypeName
                     return (string(buffer[:i]), contentsDescr);
-                } else if (
-                    current == 0x00 || current == bytes1(" ") || current == bytes1(",") || current == bytes1(")")
-                ) {
+                } else if (_isForbiddenChar(current)) {
                     // we found an invalid character (forbidden) - passthrough (fail)
                     break;
                 }
@@ -187,11 +194,12 @@ library ERC7739Utils {
             for (uint256 i = buffer.length; i > 0; --i) {
                 bytes1 current = buffer[i - 1];
                 if (current == bytes1(")")) {
+                    // we know that i is not buffer.length
+                    // if name is empty, or first char of name is lowercase - passthrough (fail)
+                    if (_isForbiddenFirstChar(buffer[i])) break;
                     // we found the end of the contentsTypeName
                     return (string(buffer[i:]), string(buffer[:i]));
-                } else if (
-                    current == 0x00 || current == bytes1(" ") || current == bytes1(",") || current == bytes1(")")
-                ) {
+                } else if (_isForbiddenChar(current)) {
                     // we found an invalid character (forbidden) - passthrough (fail)
                     break;
                 }
@@ -212,5 +220,13 @@ library ERC7739Utils {
             result.offset := 0
             result.length := 0
         }
+    }
+
+    function _isForbiddenFirstChar(bytes1 char) private pure returns (bool) {
+        return char > 0x60 && char < 0x7b;
+    }
+
+    function _isForbiddenChar(bytes1 char) private pure returns (bool) {
+        return char == 0x00 || char == bytes1(" ") || char == bytes1(",") || char == bytes1("(") || char == bytes1(")");
     }
 }
