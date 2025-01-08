@@ -5,6 +5,7 @@
     "openzeppelin-solidity": "5.1.0"
   },
   "changesets": [
+    "cyan-taxis-travel",
     "eighty-hounds-promise",
     "four-chairs-help",
     "great-lions-hear",
