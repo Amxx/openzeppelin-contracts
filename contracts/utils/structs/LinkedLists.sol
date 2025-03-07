@@ -74,6 +74,7 @@ library LinkedLists {
     }
 
     function insertAt(Uint224LinkedList storage self, uint16 position, uint224 value) internal {
+        if (position > length(self)) Panic.panic(Panic.ARRAY_OUT_OF_BOUNDS);
         insertAfter(self, forward(self, BEGIN, position), value);
     }
 
