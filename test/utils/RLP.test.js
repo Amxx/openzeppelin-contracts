@@ -62,5 +62,21 @@ describe('RLP', function () {
         );
       }
     });
+
+    it('createAddress', async function () {
+      const from = generators.address();
+
+      for (const nonce of [0n, 1n, 127n, 128n, 65535n]) {
+        // keccak256(encode([ encode(from), encode(nonce) ])).slice(-20);
+        const encoded = await this.mock.getFunction('$encode(bytes[])')([
+          await this.mock.getFunction('$encode(address)')(from),
+          await this.mock.getFunction('$encode(uint256)')(nonce),
+        ]);
+        const hash = ethers.keccak256(encoded);
+        const addr = ethers.hexlify(ethers.getBytes(hash).slice(-20));
+
+        expect(ethers.getAddress(addr)).to.equal(ethers.getCreateAddress({ from, nonce }));
+      }
+    });
   });
 });
