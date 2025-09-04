@@ -38,6 +38,10 @@ library RLP {
         return _push(self, encode(input));
     }
 
+    function push(Encoder memory self, Encoder memory input) internal pure returns (Encoder memory) {
+        return _push(self, encode(input));
+    }
+
     function _asPtr(Item memory item) private pure returns (Memory.Pointer ptr) {
         assembly ("memory-safe") {
             ptr := item
