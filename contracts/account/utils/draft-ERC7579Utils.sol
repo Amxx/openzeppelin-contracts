@@ -254,10 +254,10 @@ library ERC7579Utils {
 }
 
 // Operators
-using {eqCallType as ==} for CallType global;
-using {eqExecType as ==} for ExecType global;
-using {eqModeSelector as ==} for ModeSelector global;
-using {eqModePayload as ==} for ModePayload global;
+using {eqCallType as ==, diffCallType as !=} for CallType global;
+using {eqExecType as ==, diffExecType as !=} for ExecType global;
+using {eqModeSelector as ==, diffModeSelector as !=} for ModeSelector global;
+using {eqModePayload as ==, diffModePayload as !=} for ModePayload global;
 
 /// @dev Compares two `CallType` values for equality.
 function eqCallType(CallType a, CallType b) pure returns (bool) {
@@ -277,4 +277,24 @@ function eqModeSelector(ModeSelector a, ModeSelector b) pure returns (bool) {
 /// @dev Compares two `ModePayload` values for equality.
 function eqModePayload(ModePayload a, ModePayload b) pure returns (bool) {
     return ModePayload.unwrap(a) == ModePayload.unwrap(b);
+}
+
+/// @dev Compares two `CallType` values for inequality.
+function diffCallType(CallType a, CallType b) pure returns (bool) {
+    return CallType.unwrap(a) != CallType.unwrap(b);
+}
+
+/// @dev Compares two `ExecType` values for inequality.
+function diffExecType(ExecType a, ExecType b) pure returns (bool) {
+    return ExecType.unwrap(a) != ExecType.unwrap(b);
+}
+
+/// @dev Compares two `ModeSelector` values for inequality.
+function diffModeSelector(ModeSelector a, ModeSelector b) pure returns (bool) {
+    return ModeSelector.unwrap(a) != ModeSelector.unwrap(b);
+}
+
+/// @dev Compares two `ModePayload` values for inequality.
+function diffModePayload(ModePayload a, ModePayload b) pure returns (bool) {
+    return ModePayload.unwrap(a) != ModePayload.unwrap(b);
 }

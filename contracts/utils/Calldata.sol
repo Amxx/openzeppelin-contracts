@@ -22,4 +22,10 @@ library Calldata {
             result.length := 0
         }
     }
+
+    function decodeBytesAt(bytes calldata data, uint256 pos) internal pure returns (bytes calldata) {
+        uint256 offset = uint256(bytes32(data[pos:]));
+        uint256 length = uint256(bytes32(data[offset:]));
+        return data[offset + 0x20:offset + 0x20 + length];
+    }
 }
