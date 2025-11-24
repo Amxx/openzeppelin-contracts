@@ -23,6 +23,10 @@ import {Calldata} from "../../utils/Calldata.sol";
 abstract contract ERC7579GovernorModule is IERC7579Module, IERC7579Validator, IERC6372 {
     using Math for uint256;
 
+    /****************************************************************************************************************
+     *                                              Constants & Enums                                               *
+     ****************************************************************************************************************/
+
     ModeSelector private constant MODE_SELECTOR_GOVERNOR = ModeSelector.wrap(0xAABBCCDD); // TODO value
     bytes32 private constant ALL_PROPOSAL_STATES_BITMAP = bytes32((2 ** (uint8(type(ProposalState).max) + 1)) - 1);
 
@@ -38,6 +42,9 @@ abstract contract ERC7579GovernorModule is IERC7579Module, IERC7579Validator, IE
         Canceled
     }
 
+    /****************************************************************************************************************
+     *                                                   Storage                                                    *
+     ****************************************************************************************************************/
     struct ProposalCore {
         // slot 0
         bytes32 configId;
@@ -69,6 +76,10 @@ abstract contract ERC7579GovernorModule is IERC7579Module, IERC7579Validator, IE
     mapping(bytes32 proposalId => ProposalCore) private _proposals;
     mapping(bytes32 configId => GovernorConfig) private _configs;
 
+    /****************************************************************************************************************
+     *                                               Events & Errors                                                *
+     ****************************************************************************************************************/
+
     event ProposalCreated(
         bytes32 indexed proposalId,
         address indexed executor,
@@ -76,15 +87,32 @@ abstract contract ERC7579GovernorModule is IERC7579Module, IERC7579Validator, IE
         bytes executionCalldata,
         string description
     );
+
     event ProposalExecuted(bytes32 indexed proposalId);
 
-    /// @inheritdoc IERC7579Module
-    function onInstall(bytes calldata /*data*/) public virtual {
+    error GovernorUnexpectedProposalState(bytes32 proposalId, ProposalState current, bytes32 expectedStates);
+
+    /****************************************************************************************************************
+     *                                                  Modifiers                                                   *
+     ****************************************************************************************************************/
+
+    modifier onlyInstalledAsExecutorForSender() {
         require(
             IERC7579ModuleConfig(msg.sender).isModuleInstalled(MODULE_TYPE_EXECUTOR, address(this), new bytes(0)),
             "Module must be installed as executor"
         );
+        _;
+    }
 
+    /****************************************************************************************************************
+     *                                           IERC7579Module core logic                                          *
+     ****************************************************************************************************************/
+
+    /// @inheritdoc IERC7579Module
+    function onInstall(bytes calldata /*data*/) public virtual onlyInstalledAsExecutorForSender() {
+        // Install config(s)?
+
+        // Install as validator if not already done
         if (!IERC7579ModuleConfig(msg.sender).isModuleInstalled(MODULE_TYPE_VALIDATOR, address(this), new bytes(0))) {
             IERC7579Execution(msg.sender).executeFromExecutor(
                 bytes32(0),
@@ -99,6 +127,7 @@ abstract contract ERC7579GovernorModule is IERC7579Module, IERC7579Validator, IE
             );
         }
 
+        // Install as fallback for handleProposal if not already done
         bytes memory selector = abi.encodePacked(this.handleProposal.selector);
         if (!IERC7579ModuleConfig(msg.sender).isModuleInstalled(MODULE_TYPE_FALLBACK, address(this), selector)) {
             IERC7579Execution(msg.sender).executeFromExecutor(
@@ -122,6 +151,10 @@ abstract contract ERC7579GovernorModule is IERC7579Module, IERC7579Validator, IE
             moduleTypeId == MODULE_TYPE_EXECUTOR ||
             moduleTypeId == MODULE_TYPE_FALLBACK;
     }
+
+    /****************************************************************************************************************
+     *                                       IERC7579Module validation logic                                        *
+     ****************************************************************************************************************/
 
     /// @inheritdoc IERC7579Validator
     function validateUserOp(PackedUserOperation calldata userOp, bytes32) public virtual returns (uint256) {
@@ -178,6 +211,10 @@ abstract contract ERC7579GovernorModule is IERC7579Module, IERC7579Validator, IE
         return 0x00000000;
     }
 
+    /****************************************************************************************************************
+     *                        Governor logic (ERC-6372 clock + Proposal lifecycle + voting)                         *
+     ****************************************************************************************************************/
+
     /// @inheritdoc IERC6372
     function clock() public view virtual returns (uint48);
 
@@ -185,29 +222,27 @@ abstract contract ERC7579GovernorModule is IERC7579Module, IERC7579Validator, IE
     // solhint-disable-next-line func-name-mixedcase
     function CLOCK_MODE() public view virtual returns (string memory);
 
-    function hashConfigId(address executor, ModePayload payload) public pure returns (bytes32) {
+    // TODO: View or pure (same discussion from governor's proposalId)
+    function hashConfigId(address executor, ModePayload payload) public view virtual returns (bytes32) {
         return keccak256(abi.encode(executor, payload));
     }
 
+    // TODO: View or pure (same discussion from governor's proposalId)
     function hashProposalId(
         bytes32 configId,
         bytes32 mode,
         bytes calldata executionCalldata,
         bytes32 descriptionHash
-    ) public pure returns (bytes32) {
+    ) public view virtual returns (bytes32) {
         return keccak256(abi.encode(configId, mode, executionCalldata, descriptionHash));
     }
 
-    // solhint-disable-next-line func-name-mixedcase
-    function UNSAFE_setGovernorConfig(address executor, ModePayload payload, GovernorConfig calldata config) public {
-        bytes32 configId = hashConfigId(executor, payload);
-        _configs[configId] = config;
-    }
-
+    // TODO: effect on state if we make that virtual
     function getConfigDetails(bytes32 configId) public view returns (GovernorConfig memory) {
         return _configs[configId];
     }
 
+    // TODO: effect on state if we make that virtual
     function getProposalDetails(bytes32 proposalId) public view returns (ProposalCore memory) {
         return _proposals[proposalId];
     }
@@ -247,8 +282,15 @@ abstract contract ERC7579GovernorModule is IERC7579Module, IERC7579Validator, IE
         }
     }
 
-    // NOTE: This is called through ERC7579 fallback
-    function handleProposal(bytes32 mode, bytes calldata executionCalldata, string memory description) public virtual {
+    // NOTE: This is called through ERC-7579 fallback. Actual caller (might be entrypoint in case of userop, is forwarded through ERC-2771)
+    //
+    // If the proposal is created using a user operation, then we don't have the identity of the actual proposer, and we have the entrypoint instead.
+    // This might have consequences on the cancelling process. The Entrypoint would possibly be the only one allowed to cancel such proposals. This means
+    // the cancellation has to happen through a user operation that is validated by the account. This module will not validate such cancellation user
+    // operations so another validation logic would be required.
+    //
+    // Alternative: if the description ends with the "proposer=0x......" string, then we could use that address instead of the ERC-2771 value.
+    function handleProposal(bytes32 mode, bytes calldata executionCalldata, string memory description) public virtual onlyInstalledAsExecutorForSender() {
         address executor = msg.sender;
 
         (, , ModeSelector selector, ModePayload payload) = ERC7579Utils.decodeMode(Mode.wrap(mode));
@@ -320,7 +362,28 @@ abstract contract ERC7579GovernorModule is IERC7579Module, IERC7579Validator, IE
         // TODO emit event
     }
 
-    error GovernorUnexpectedProposalState(bytes32 proposalId, ProposalState current, bytes32 expectedStates);
+
+    // solhint-disable-next-line func-name-mixedcase
+    function UNSAFE_setGovernorConfig(address executor, ModePayload payload, GovernorConfig calldata config) public {
+        bytes32 configId = hashConfigId(executor, payload);
+        _configs[configId] = config;
+    }
+
+    function setGovernorConfig(ModePayload payload, GovernorConfig calldata config) public virtual {
+        _setGovernorConfig(msg.sender, payload, config, false);
+    }
+
+    function _setGovernorConfig(address executor, ModePayload payload, GovernorConfig calldata config, bool allowOverride) internal virtual {
+        bytes32 configId = hashConfigId(executor, payload);
+        require(config.token != address(0)); // Input sanity
+        require(allowOverride || _configs[configId].token == address(0)); // Prevent overwrite
+        _configs[configId] = config;
+        // TODO event
+    }
+
+    /****************************************************************************************************************
+     *                                                   Helpers                                                    *
+     ****************************************************************************************************************/
 
     function _encodeStateBitmap(ProposalState proposalState) private pure returns (bytes32) {
         return bytes32(1 << uint8(proposalState));
