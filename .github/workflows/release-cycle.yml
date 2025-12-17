@@ -20,6 +20,10 @@ on:
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+env:
+  MAIN_REPO: OpenZeppelin/openzeppelin-contracts
+  UPGRADEABLE_REPO: OpenZeppelin/openzeppelin-contracts-upgradeable
+
 jobs:
   state:
     name: Check state
@@ -28,6 +32,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - if: ${{ github.repository == env.UPGRADEABLE_REPO }}
+        uses: actions/checkout@v6
+          repository: ${{ env.MAIN_REPO }}
+          ref: ${{ github.ref }}
+          path: lib/openzeppelin-contracts
       - name: Set up environment
         uses: ./.github/actions/setup
       - id: state
@@ -136,6 +145,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - if: ${{ github.repository == env.UPGRADEABLE_REPO }}
+        uses: actions/checkout@v6
+          repository: ${{ env.MAIN_REPO }}
+          ref: ${{ github.ref }}
+          path: lib/openzeppelin-contracts
       - name: Set up environment
         uses: ./.github/actions/setup
       - id: pack

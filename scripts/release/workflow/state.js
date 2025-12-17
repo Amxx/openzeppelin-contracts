@@ -13,11 +13,15 @@ module.exports = async ({ github, context, core }) => {
   }
 
   // Jobs to trigger
-  setOutput('start', shouldRunStart(state));
-  setOutput('promote', shouldRunPromote(state));
-  setOutput('changesets', shouldRunChangesets(state));
-  setOutput('publish', shouldRunPublish(state));
-  setOutput('merge', shouldRunMerge(state));
+  if (github.repository.endsWith('-upgradeable')) {
+    setOutput('publish', shouldRunPublish(state));
+  } else {
+    setOutput('start', shouldRunStart(state));
+    setOutput('promote', shouldRunPromote(state));
+    setOutput('changesets', shouldRunChangesets(state));
+    setOutput('publish', shouldRunPublish(state));
+    setOutput('merge', shouldRunMerge(state));
+  }
 
   // Global Variables
   setOutput('is_prerelease', state.prerelease);
