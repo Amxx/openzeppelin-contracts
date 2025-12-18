@@ -173,7 +173,7 @@ index c156fa1cc..895e39342 100644
       * @dev Prevents a contract from calling itself, directly or indirectly.
       * Calling a `nonReentrant` function from another `nonReentrant`
 diff --git a/contracts/utils/cryptography/EIP712.sol b/contracts/utils/cryptography/EIP712.sol
-index 2bc45a4b2..a5aa41d21 100644
+index 2bc45a4b2..33df1d3af 100644
 --- a/contracts/utils/cryptography/EIP712.sol
 +++ b/contracts/utils/cryptography/EIP712.sol
 @@ -4,7 +4,6 @@
@@ -184,7 +184,7 @@ index 2bc45a4b2..a5aa41d21 100644
  import {IERC5267} from "../../interfaces/IERC5267.sol";
  
  /**
-@@ -25,33 +24,18 @@ import {IERC5267} from "../../interfaces/IERC5267.sol";
+@@ -25,33 +24,15 @@ import {IERC5267} from "../../interfaces/IERC5267.sol";
   * NOTE: This contract implements the version of the encoding known as "v4", as implemented by the JSON RPC method
   * https://docs.metamask.io/guide/signing-data.html[`eth_signTypedDataV4` in MetaMask].
   *
@@ -208,9 +208,9 @@ index 2bc45a4b2..a5aa41d21 100644
 -    uint256 private immutable _cachedChainId;
 -    address private immutable _cachedThis;
 -
-     bytes32 private immutable _hashedName;
-     bytes32 private immutable _hashedVersion;
- 
+-    bytes32 private immutable _hashedName;
+-    bytes32 private immutable _hashedVersion;
+-
 -    ShortString private immutable _name;
 -    ShortString private immutable _version;
 -    // slither-disable-next-line constable-states
@@ -222,7 +222,7 @@ index 2bc45a4b2..a5aa41d21 100644
  
      /**
       * @dev Initializes the domain separator and parameter caches.
-@@ -66,29 +50,19 @@ abstract contract EIP712 is IERC5267 {
+@@ -66,29 +47,19 @@ abstract contract EIP712 is IERC5267 {
       * contract upgrade].
       */
      constructor(string memory name, string memory version) {
@@ -256,7 +256,7 @@ index 2bc45a4b2..a5aa41d21 100644
      }
  
      /**
-@@ -139,22 +113,38 @@ abstract contract EIP712 is IERC5267 {
+@@ -139,22 +110,38 @@ abstract contract EIP712 is IERC5267 {
      /**
       * @dev The name parameter for the EIP712 domain.
       *
