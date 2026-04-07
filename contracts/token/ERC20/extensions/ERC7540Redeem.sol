@@ -2,10 +2,12 @@
 
 pragma solidity ^0.8.26;
 
+import {IERC20} from "../../../interfaces/IERC20.sol";
 import {IERC4626} from "../../../interfaces/IERC4626.sol";
 import {IERC7540Redeem} from "../../../interfaces/IERC7540.sol";
 import {ERC165} from "../../../utils/introspection/ERC165.sol";
 import {Math} from "../../../utils/math/Math.sol";
+import {ERC20} from "../ERC20.sol";
 import {ERC7540Operator} from "./ERC7540Operator.sol";
 
 /**
@@ -96,8 +98,15 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
         address receiver,
         address controller
     ) public virtual override onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
-        uint256 shares = _withdraw(assets, receiver, controller);
-        _transferOut(receiver, assets);
+        uint256 maxAssets = maxWithdraw(controller);
+        if (assets > maxAssets) {
+            revert ERC4626ExceededMaxWithdraw(controller, assets, maxAssets);
+        }
+
+        // *preview* and execute
+        uint256 shares = Math.mulDiv(assets, maxRedeem(controller), maxWithdraw(controller), Math.Rounding.Ceil);
+        _withdraw(_msgSender(), receiver, controller, assets, shares);
+
         return shares;
     }
 
@@ -114,9 +123,38 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
         address receiver,
         address controller
     ) public virtual override onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
-        uint256 assets = _redeem(shares, receiver, controller);
-        _transferOut(receiver, assets);
+        uint256 maxShares = maxRedeem(controller);
+        if (shares > maxShares) {
+            revert ERC4626ExceededMaxRedeem(controller, shares, maxShares);
+        }
+
+        // *preview* and execute
+        uint256 assets = Math.mulDiv(shares, maxWithdraw(controller), maxRedeem(controller), Math.Rounding.Floor);
+        _withdraw(_msgSender(), receiver, controller, assets, shares);
+
         return assets;
+    }
+
+    /****************************************************************************************************************
+     *                              Behavior specific to this ERC-7540 implementation                               *
+     *                                                                                                              *
+     * There should be overridden to modify the behavior of the vault, for example to introduce different requestId *
+     * to enforce delays on the asynchronous operations or to use a different storage for tracking.                 *
+     ****************************************************************************************************************/
+
+    /**
+     * @dev See {ERC4626-totalSupply}.
+     *
+     * Total shares pending redemption must be added from the reported total supply
+     * otherwise pending assets would be treated as yield for outstanding shares.
+     */
+    function totalSupply() public view virtual override(IERC20, ERC20) returns (uint256) {
+        return super.totalSupply() + totalPendingRedeemShares();
+    }
+
+    /// @dev Returns the total amount of shares currently pending in redeem requests.
+    function totalPendingRedeemShares() public view virtual returns (uint256) {
+        return _totalPendingRedeemShares;
     }
 
     /// @inheritdoc IERC7540Redeem
@@ -180,7 +218,7 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
      *
      * * `shares` must not exceed the pending redeem amount for the controller
      */
-    function _fulfillRedeem(uint256 shares, uint256 assets, address controller) internal virtual returns (uint256) {
+    function _fulfillRedeem(uint256 shares, uint256 assets, address controller) internal virtual {
         uint256 pendingShares = pendingRedeemRequest(0, controller);
         require(shares <= pendingShares, ERC7540RedeemInsufficientPendingShares(shares, pendingShares));
 
@@ -189,38 +227,22 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
         _redeems[controller].claimableAssets += assets;
 
         emit RedeemClaimable(controller, 0, assets, shares);
-        return assets;
     }
 
-    function _withdraw(uint256 assets, address receiver, address controller) internal virtual returns (uint256) {
-        // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
-        // while the claimable balance is reduced by a rounded up amount.
-        uint256 claimableShares = maxRedeem(controller);
-        uint256 claimableAssets = maxWithdraw(controller);
-        uint256 shares = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Floor);
-        uint256 sharesUp = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Ceil);
-
-        _totalPendingRedeemShares = Math.saturatingSub(_totalPendingRedeemShares, sharesUp);
-        _redeems[controller].claimableShares = Math.saturatingSub(claimableShares, sharesUp);
-        _redeems[controller].claimableAssets = Math.saturatingSub(claimableAssets, assets);
-
-        emit IERC4626.Withdraw(_msgSender(), receiver, controller, assets, shares);
-        return shares;
-    }
-
-    function _redeem(uint256 shares, address receiver, address controller) internal virtual returns (uint256) {
-        // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
-        // while the claimable balance is reduced by a rounded up amount.
-        uint256 claimableAssets = maxWithdraw(controller);
-        uint256 claimableShares = maxRedeem(controller);
-        uint256 assets = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Floor);
-        uint256 assetsUp = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Ceil);
-
+    function _withdraw(
+        address caller,
+        address receiver,
+        address controller,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual override {
         _totalPendingRedeemShares = Math.saturatingSub(_totalPendingRedeemShares, shares);
-        _redeems[controller].claimableShares = Math.saturatingSub(claimableShares, shares);
-        _redeems[controller].claimableAssets = Math.saturatingSub(claimableAssets, assetsUp);
+        _redeems[controller].claimableShares = Math.saturatingSub(_redeems[controller].claimableShares, shares);
+        _redeems[controller].claimableAssets = Math.saturatingSub(_redeems[controller].claimableAssets, assets);
 
-        emit IERC4626.Withdraw(_msgSender(), receiver, controller, assets, shares);
-        return assets;
+        // Do not burn shares during withdraw --- they were already burned at request time
+        _transferOut(receiver, assets);
+
+        emit Withdraw(caller, receiver, controller, assets, shares);
     }
 }

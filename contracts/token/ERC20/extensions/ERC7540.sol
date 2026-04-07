@@ -3,6 +3,7 @@
 pragma solidity ^0.8.26;
 
 import {IERC165} from "../../../interfaces/IERC165.sol";
+import {IERC20, ERC20} from "../ERC20.sol";
 import {IERC4626, ERC4626} from "./ERC4626.sol";
 import {ERC7540Deposit} from "./ERC7540Deposit.sol";
 import {ERC7540Redeem} from "./ERC7540Redeem.sol";
@@ -32,6 +33,11 @@ abstract contract ERC7540 is ERC7540Redeem, ERC7540Deposit {
         bytes4 interfaceId
     ) public view virtual override(ERC7540Redeem, ERC7540Deposit) returns (bool) {
         return super.supportsInterface(interfaceId);
+    }
+
+    /// @inheritdoc ERC7540Redeem
+    function totalSupply() public view virtual override(ERC7540Redeem, IERC20, ERC20) returns (uint256) {
+        return super.totalSupply();
     }
 
     /// @inheritdoc ERC7540Deposit
@@ -108,5 +114,24 @@ abstract contract ERC7540 is ERC7540Redeem, ERC7540Deposit {
         address owner
     ) public virtual override(ERC7540Redeem, ERC4626) returns (uint256) {
         return super.redeem(shares, receiver, owner);
+    }
+
+    function _deposit(
+        address controller,
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual override(ERC7540Deposit, ERC4626) {
+        super._deposit(controller, receiver, assets, shares);
+    }
+
+    function _withdraw(
+        address caller,
+        address receiver,
+        address controller,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual override(ERC7540Redeem, ERC4626) {
+        super._withdraw(caller, receiver, controller, assets, shares);
     }
 }
