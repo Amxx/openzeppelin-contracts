@@ -215,22 +215,6 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
         return assets;
     }
 
-    function _withdraw(uint256 assets, address receiver, address controller) internal virtual returns (uint256) {
-        // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
-        // while the claimable balance is reduced by a rounded up amount.
-        uint256 claimableShares = maxRedeem(controller);
-        uint256 claimableAssets = maxWithdraw(controller);
-        uint256 shares = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Floor);
-        uint256 sharesUp = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Ceil);
-
-        _totalPendingRedeemShares = Math.saturatingSub(_totalPendingRedeemShares, sharesUp);
-        _redeems[controller].claimableShares = Math.saturatingSub(claimableShares, sharesUp);
-        _redeems[controller].claimableAssets = Math.saturatingSub(claimableAssets, assets);
-
-        emit IERC4626.Withdraw(_msgSender(), receiver, controller, assets, shares);
-        return shares;
-    }
-
     function _claimRedeem(
         uint256 assets,
         uint256 shares,
