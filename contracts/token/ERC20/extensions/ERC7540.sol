@@ -2,13 +2,12 @@
 
 pragma solidity ^0.8.26;
 
-import {IERC4626} from "../../../interfaces/IERC4626.sol";
+import {IERC165} from "../../../interfaces/IERC165.sol";
+import {IERC4626, ERC4626} from "./ERC4626.sol";
 import {ERC7540Deposit} from "./ERC7540Deposit.sol";
 import {ERC7540Redeem} from "./ERC7540Redeem.sol";
 import {ERC7540Operator} from "./ERC7540Operator.sol";
-import {ERC20Vault} from "./ERC20Vault.sol";
-import {IERC20Vault} from "./IERC20Vault.sol";
-import {ERC165} from "../../../utils/introspection/ERC165.sol";
+
 /**
  * @dev Implementation of the ERC-7540 "Asynchronous ERC-4626 Tokenized Vaults" as defined in
  * https://eips.ethereum.org/EIPS/eip-7540[ERC-7540].
@@ -22,81 +21,74 @@ import {ERC165} from "../../../utils/introspection/ERC165.sol";
  *
  * CAUTION: ERC-7540 introduces operator permissions that allow operators to manage requests on behalf of controllers.
  * Users should be cautious when approving operators as they gain significant control over both assets and shares.
+ *
+ * NOTE: For all functions that override either {ERC7540Deposit} or {ERC7540Redeem} and {ERC4626}, the ERC-7540 version
+ * of the function is the one that is called by super. This is guaranteed by the fact that {ERC7540Deposit} and {ERC7540Redeem}
+ * both inherit from {ERC4626} through {ERC7540Operator}.
  */
-abstract contract ERC7540 is ERC165, ERC7540Redeem, ERC7540Deposit, IERC4626 {
+abstract contract ERC7540 is ERC7540Redeem, ERC7540Deposit {
+    /// @inheritdoc IERC165
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC7540Redeem, ERC7540Deposit) returns (bool) {
+        return super.supportsInterface(interfaceId);
+    }
+
     /// @inheritdoc ERC7540Deposit
-    function totalAssets() public view virtual override(ERC7540Deposit, ERC20Vault, IERC20Vault) returns (uint256) {
+    function totalAssets() public view virtual override(ERC7540Deposit, ERC4626) returns (uint256) {
         return super.totalAssets();
     }
 
     /// @inheritdoc IERC4626
-    function previewDeposit(uint256 assets) public view virtual override(ERC7540Deposit, IERC4626) returns (uint256) {
+    function previewDeposit(uint256 assets) public view virtual override(ERC7540Deposit, ERC4626) returns (uint256) {
         return super.previewDeposit(assets); // Must revert
     }
 
     /// @inheritdoc IERC4626
-    function previewMint(uint256 shares) public view virtual override(ERC7540Deposit, IERC4626) returns (uint256) {
+    function previewMint(uint256 shares) public view virtual override(ERC7540Deposit, ERC4626) returns (uint256) {
         return super.previewMint(shares); // Must revert
     }
 
     /// @inheritdoc IERC4626
-    function previewWithdraw(uint256 assets) public view virtual override(ERC7540Redeem, IERC4626) returns (uint256) {
+    function previewWithdraw(uint256 assets) public view virtual override(ERC7540Redeem, ERC4626) returns (uint256) {
         return super.previewWithdraw(assets); // Must revert
     }
 
     /// @inheritdoc IERC4626
-    function previewRedeem(uint256 shares) public view virtual override(ERC7540Redeem, IERC4626) returns (uint256) {
+    function previewRedeem(uint256 shares) public view virtual override(ERC7540Redeem, ERC4626) returns (uint256) {
         return super.previewRedeem(shares); // Must revert
     }
 
-    /// @inheritdoc ERC20Vault
-    function maxDeposit(
-        address controller
-    ) public view virtual override(ERC7540Deposit, ERC20Vault, IERC20Vault) returns (uint256) {
+    /// @inheritdoc IERC4626
+    function maxDeposit(address controller) public view virtual override(ERC7540Deposit, ERC4626) returns (uint256) {
         return super.maxDeposit(controller);
     }
 
-    /// @inheritdoc ERC20Vault
-    function maxMint(
-        address controller
-    ) public view virtual override(ERC7540Deposit, ERC20Vault, IERC20Vault) returns (uint256) {
+    /// @inheritdoc IERC4626
+    function maxMint(address controller) public view virtual override(ERC7540Deposit, ERC4626) returns (uint256) {
         return super.maxMint(controller);
     }
 
-    /// @inheritdoc ERC20Vault
-    function maxWithdraw(
-        address controller
-    ) public view virtual override(ERC7540Redeem, ERC20Vault, IERC20Vault) returns (uint256) {
+    /// @inheritdoc IERC4626
+    function maxWithdraw(address controller) public view virtual override(ERC7540Redeem, ERC4626) returns (uint256) {
         return super.maxWithdraw(controller);
     }
 
-    /// @inheritdoc ERC20Vault
-    function maxRedeem(
-        address controller
-    ) public view virtual override(ERC7540Redeem, ERC20Vault, IERC20Vault) returns (uint256) {
+    /// @inheritdoc IERC4626
+    function maxRedeem(address controller) public view virtual override(ERC7540Redeem, ERC4626) returns (uint256) {
         return super.maxRedeem(controller);
-    }
-
-    /// @inheritdoc ERC165
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(ERC165, ERC7540Deposit, ERC7540Redeem) returns (bool) {
-        return super.supportsInterface(interfaceId);
     }
 
     /// @inheritdoc IERC4626
     function deposit(
         uint256 assets,
         address receiver
-    ) public virtual override(ERC7540Deposit, IERC4626) returns (uint256) {
+    ) public virtual override(ERC7540Deposit, ERC4626) returns (uint256) {
         return super.deposit(assets, receiver);
     }
 
     /// @inheritdoc IERC4626
-    function mint(
-        uint256 shares,
-        address receiver
-    ) public virtual override(ERC7540Deposit, IERC4626) returns (uint256) {
+    function mint(uint256 shares, address receiver) public virtual override(ERC7540Deposit, ERC4626) returns (uint256) {
         return super.mint(shares, receiver);
     }
 
@@ -105,7 +97,7 @@ abstract contract ERC7540 is ERC165, ERC7540Redeem, ERC7540Deposit, IERC4626 {
         uint256 assets,
         address receiver,
         address owner
-    ) public virtual override(ERC7540Redeem, IERC4626) returns (uint256) {
+    ) public virtual override(ERC7540Redeem, ERC4626) returns (uint256) {
         return super.withdraw(assets, receiver, owner);
     }
 
@@ -114,7 +106,7 @@ abstract contract ERC7540 is ERC165, ERC7540Redeem, ERC7540Deposit, IERC4626 {
         uint256 shares,
         address receiver,
         address owner
-    ) public virtual override(ERC7540Redeem, IERC4626) returns (uint256) {
+    ) public virtual override(ERC7540Redeem, ERC4626) returns (uint256) {
         return super.redeem(shares, receiver, owner);
     }
 }

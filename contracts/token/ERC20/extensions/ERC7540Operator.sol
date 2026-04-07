@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.26;
 
-import {ERC20Vault} from "./ERC20Vault.sol";
+import {ERC4626} from "./ERC4626.sol";
 import {IERC7540Operator} from "../../../interfaces/IERC7540.sol";
 import {ERC165} from "../../../utils/introspection/ERC165.sol";
 import {IERC20} from "../IERC20.sol";
@@ -10,7 +10,7 @@ import {IERC20} from "../IERC20.sol";
 /**
  * @dev Base implementation for ERC-7540 asynchronous vaults with operator support.
  *
- * This contract extends {ERC20Vault} with operator functionality as defined in ERC-7540.
+ * This contract extends {ERC4626} with operator functionality as defined in ERC-7540.
  * Operators can manage requests on behalf of controllers, enabling delegation of vault operations
  * such as requesting deposits/redemptions and claiming assets/shares.
  *
@@ -28,7 +28,7 @@ import {IERC20} from "../IERC20.sol";
  * Users should only approve operators they fully trust with both their assets and shares.
  * ====
  */
-abstract contract ERC7540Operator is ERC165, ERC20Vault, IERC7540Operator {
+abstract contract ERC7540Operator is ERC165, ERC4626, IERC7540Operator {
     /// @dev The operator is not the caller or an operator of the controller
     error ERC7540InvalidOperator(address controller, address operator);
 
@@ -41,18 +41,18 @@ abstract contract ERC7540Operator is ERC165, ERC20Vault, IERC7540Operator {
     }
 
     /**
-     * @dev Sets the underlying asset contract. See {ERC20Vault-constructor}.
+     * @dev Sets the underlying asset contract. See {ERC4626-constructor}.
      */
-    constructor(IERC20 asset_) ERC20Vault(asset_) {}
-
-    /// @inheritdoc IERC7540Operator
-    function isOperator(address controller, address operator) public view returns (bool status) {
-        return _isOperator[controller][operator];
-    }
+    constructor(IERC20 asset_) ERC4626(asset_) {}
 
     /// @inheritdoc ERC165
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return interfaceId == type(IERC7540Operator).interfaceId || super.supportsInterface(interfaceId);
+    }
+
+    /// @inheritdoc IERC7540Operator
+    function isOperator(address controller, address operator) public view returns (bool status) {
+        return _isOperator[controller][operator];
     }
 
     /// @inheritdoc IERC7540Operator
@@ -67,10 +67,8 @@ abstract contract ERC7540Operator is ERC165, ERC20Vault, IERC7540Operator {
      * Emits an {OperatorSet} event if the approval status changes.
      */
     function _setOperator(address controller, address operator, bool approved) internal {
-        if (_isOperator[controller][operator] != approved) {
-            _isOperator[controller][operator] = approved;
-            emit OperatorSet(controller, operator, approved);
-        }
+        _isOperator[controller][operator] = approved;
+        emit OperatorSet(controller, operator, approved);
     }
 
     /// @dev Reverts if the `operator` is not the caller or an operator of the `controller`
