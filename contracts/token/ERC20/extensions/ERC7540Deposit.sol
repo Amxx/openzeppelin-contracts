@@ -81,10 +81,12 @@ abstract contract ERC7540Deposit is ERC165, ERC7540Operator, IERC7540Deposit {
         address controller,
         address owner
     ) public virtual onlyOperatorOrController(owner, _msgSender()) returns (uint256) {
+        uint256 requestId = _requestDeposit(assets, controller, owner);
+
         // Must revert with ERC20InsufficientBalance or equivalent error if there's not enough balance.
         _transferIn(owner, assets);
 
-        return _requestDeposit(assets, controller, owner);
+        return requestId;
     }
 
     /**
@@ -104,8 +106,8 @@ abstract contract ERC7540Deposit is ERC165, ERC7540Operator, IERC7540Deposit {
         uint256 assets,
         address receiver,
         address controller
-    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
-        uint256 shares = _deposit(assets, receiver, controller);
+    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256 shares) {
+        (assets, shares) = _claimDeposit(assets, 0, receiver, controller);
         _mint(receiver, shares);
         return shares;
     }
@@ -127,8 +129,8 @@ abstract contract ERC7540Deposit is ERC165, ERC7540Operator, IERC7540Deposit {
         uint256 shares,
         address receiver,
         address controller
-    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
-        uint256 assets = _mint(shares, receiver, controller);
+    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256 assets) {
+        (assets, shares) = _claimDeposit(0, shares, receiver, controller);
         _mint(receiver, shares);
         return assets;
     }
@@ -224,35 +226,36 @@ abstract contract ERC7540Deposit is ERC165, ERC7540Operator, IERC7540Deposit {
         return shares;
     }
 
-    function _deposit(uint256 assets, address receiver, address controller) internal virtual returns (uint256) {
+    function _claimDeposit(
+        uint256 assets,
+        uint256 shares,
+        address receiver,
+        address controller
+    ) internal virtual returns (uint256, uint256) {
+        require(assets * shares == 0); // internal error;
+
         // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
         // while the claimable balance is reduced by a rounded up amount.
         uint256 claimableShares = maxMint(controller);
         uint256 claimableAssets = maxDeposit(controller);
-        uint256 shares = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Floor);
-        uint256 sharesUp = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Ceil);
+        uint256 assetsUp;
+        uint256 sharesUp;
 
-        _totalPendingDepositAssets = Math.saturatingSub(_totalPendingDepositAssets, assets);
-        _deposits[controller].claimableAssets = Math.saturatingSub(claimableAssets, assets);
-        _deposits[controller].claimableShares = Math.saturatingSub(claimableShares, sharesUp);
-
-        emit IERC4626.Deposit(controller, receiver, assets, shares);
-        return shares;
-    }
-
-    function _mint(uint256 shares, address receiver, address controller) internal virtual returns (uint256) {
-        // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
-        // while the claimable balance is reduced by a rounded up amount.
-        uint256 claimableShares = maxMint(controller);
-        uint256 claimableAssets = maxDeposit(controller);
-        uint256 assets = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Floor);
-        uint256 assetsUp = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Ceil);
+        if (shares == 0) {
+            shares = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Floor);
+            sharesUp = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Ceil);
+            assetsUp = assets;
+        } else {
+            assets = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Floor);
+            assetsUp = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Ceil);
+            sharesUp = shares;
+        }
 
         _totalPendingDepositAssets = Math.saturatingSub(_totalPendingDepositAssets, assetsUp);
         _deposits[controller].claimableAssets = Math.saturatingSub(claimableAssets, assetsUp);
-        _deposits[controller].claimableShares = Math.saturatingSub(claimableShares, shares);
+        _deposits[controller].claimableShares = Math.saturatingSub(claimableShares, sharesUp);
 
         emit IERC4626.Deposit(controller, receiver, assets, shares);
-        return assets;
+        return (assets, shares);
     }
 }
