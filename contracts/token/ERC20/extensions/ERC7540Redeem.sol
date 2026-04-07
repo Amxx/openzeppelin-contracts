@@ -99,7 +99,7 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
     ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
         // *preview* and execute
         uint256 shares = Math.mulDiv(assets, maxRedeem(controller), maxWithdraw(controller), Math.Rounding.Ceil);
-        _claimRedeem(assets, 0, receiver, controller);
+        _claimRedeem(assets, shares, receiver, controller);
 
         _transferOut(receiver, assets);
 
@@ -121,7 +121,7 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
     ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
         // *preview* and execute
         uint256 assets = Math.mulDiv(shares, maxWithdraw(controller), maxRedeem(controller), Math.Rounding.Floor);
-        _claimRedeem(0, shares, receiver, controller);
+        _claimRedeem(assets, shares, receiver, controller);
 
         _transferOut(receiver, assets);
 
