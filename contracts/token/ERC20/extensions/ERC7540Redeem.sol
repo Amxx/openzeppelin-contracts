@@ -96,8 +96,8 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
         uint256 assets,
         address receiver,
         address controller
-    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
-        uint256 shares = _withdraw(assets, receiver, controller);
+    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256 shares) {
+        (assets, shares) = _claimRedeem(assets, 0, receiver, controller);
         _transferOut(receiver, assets);
         return shares;
     }
@@ -114,8 +114,8 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
         uint256 shares,
         address receiver,
         address controller
-    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
-        uint256 assets = _redeem(shares, receiver, controller);
+    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256 assets) {
+        (assets, shares) = _claimRedeem(0, shares, receiver, controller);
         _transferOut(receiver, assets);
         return assets;
     }
@@ -231,19 +231,36 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
         return shares;
     }
 
-    function _redeem(uint256 shares, address receiver, address controller) internal virtual returns (uint256) {
+    function _claimRedeem(
+        uint256 assets,
+        uint256 shares,
+        address receiver,
+        address controller
+    ) internal virtual returns (uint256, uint256) {
+        require(assets * shares == 0); // internal error
+
         // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
         // while the claimable balance is reduced by a rounded up amount.
         uint256 claimableAssets = maxWithdraw(controller);
         uint256 claimableShares = maxRedeem(controller);
-        uint256 assets = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Floor);
-        uint256 assetsUp = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Ceil);
+        uint256 assetsUp;
+        uint256 sharesUp;
 
-        _totalPendingRedeemShares = Math.saturatingSub(_totalPendingRedeemShares, shares);
-        _redeems[controller].claimableShares = Math.saturatingSub(claimableShares, shares);
+        if (shares == 0) {
+            shares = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Floor);
+            sharesUp = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Ceil);
+            assetsUp = assets;
+        } else {
+            assets = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Floor);
+            assetsUp = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Ceil);
+            sharesUp = shares;
+        }
+
+        _totalPendingRedeemShares = Math.saturatingSub(_totalPendingRedeemShares, sharesUp);
+        _redeems[controller].claimableShares = Math.saturatingSub(claimableShares, sharesUp);
         _redeems[controller].claimableAssets = Math.saturatingSub(claimableAssets, assetsUp);
 
         emit IERC4626.Withdraw(_msgSender(), receiver, controller, assets, shares);
-        return assets;
+        return (assets, shares);
     }
 }
