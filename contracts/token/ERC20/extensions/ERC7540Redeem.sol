@@ -96,9 +96,13 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
         uint256 assets,
         address receiver,
         address controller
-    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256 shares) {
-        (assets, shares) = _claimRedeem(assets, 0, receiver, controller);
+    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
+        // *preview* and execute
+        uint256 shares = Math.mulDiv(assets, maxRedeem(controller), maxWithdraw(controller), Math.Rounding.Ceil);
+        _claimRedeem(assets, 0, receiver, controller);
+
         _transferOut(receiver, assets);
+
         return shares;
     }
 
@@ -114,9 +118,13 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
         uint256 shares,
         address receiver,
         address controller
-    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256 assets) {
-        (assets, shares) = _claimRedeem(0, shares, receiver, controller);
+    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
+        // *preview* and execute
+        uint256 assets = Math.mulDiv(shares, maxWithdraw(controller), maxRedeem(controller), Math.Rounding.Floor);
+        _claimRedeem(0, shares, receiver, controller);
+
         _transferOut(receiver, assets);
+
         return assets;
     }
 
@@ -203,7 +211,7 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
      *
      * * `shares` must not exceed the pending redeem amount for the controller
      */
-    function _fulfillRedeem(uint256 shares, uint256 assets, address controller) internal virtual returns (uint256) {
+    function _fulfillRedeem(uint256 shares, uint256 assets, address controller) internal virtual {
         uint256 pendingShares = pendingRedeemRequest(0, controller);
         require(shares <= pendingShares, ERC7540RedeemInsufficientPendingShares(shares, pendingShares));
 
@@ -212,39 +220,13 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
         _redeems[controller].claimableAssets += assets;
 
         emit RedeemClaimable(controller, 0, assets, shares);
-        return assets;
     }
 
-    function _claimRedeem(
-        uint256 assets,
-        uint256 shares,
-        address receiver,
-        address controller
-    ) internal virtual returns (uint256, uint256) {
-        require(assets * shares == 0); // internal error
-
-        // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
-        // while the claimable balance is reduced by a rounded up amount.
-        uint256 claimableAssets = maxWithdraw(controller);
-        uint256 claimableShares = maxRedeem(controller);
-        uint256 assetsUp;
-        uint256 sharesUp;
-
-        if (shares == 0) {
-            shares = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Floor);
-            sharesUp = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Ceil);
-            assetsUp = assets;
-        } else {
-            assets = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Floor);
-            assetsUp = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Ceil);
-            sharesUp = shares;
-        }
-
-        _totalPendingRedeemShares = Math.saturatingSub(_totalPendingRedeemShares, sharesUp);
-        _redeems[controller].claimableShares = Math.saturatingSub(claimableShares, sharesUp);
-        _redeems[controller].claimableAssets = Math.saturatingSub(claimableAssets, assetsUp);
+    function _claimRedeem(uint256 assets, uint256 shares, address receiver, address controller) internal virtual {
+        _totalPendingRedeemShares = Math.saturatingSub(_totalPendingRedeemShares, shares);
+        _redeems[controller].claimableShares = Math.saturatingSub(_redeems[controller].claimableShares, shares);
+        _redeems[controller].claimableAssets = Math.saturatingSub(_redeems[controller].claimableAssets, assets);
 
         emit IERC4626.Withdraw(_msgSender(), receiver, controller, assets, shares);
-        return (assets, shares);
     }
 }
