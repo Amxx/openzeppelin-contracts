@@ -48,14 +48,14 @@ abstract contract ERC7540Deposit is ERC165, ERC7540Operator, IERC7540Deposit {
     mapping(address controller => PendingDeposit) private _deposits;
     uint256 private _totalPendingDepositAssets;
 
-    /**
-     * @dev See {IERC20Vault-totalAssets}.
-     *
-     * Total assets pending redemption must be removed from the reported total assets
-     * otherwise pending assets would be treated as yield for outstanding shares.
-     */
-    function totalAssets() public view virtual override returns (uint256) {
-        return super.totalAssets() - totalPendingDepositAssets();
+    /****************************************************************************************************************
+     *                          Generic ERC-7540 behavior, applies to all implementations                           *
+     ****************************************************************************************************************/
+    /// @inheritdoc ERC165
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC165, ERC7540Operator) returns (bool) {
+        return interfaceId == type(IERC7540Deposit).interfaceId || super.supportsInterface(interfaceId);
     }
 
     /// @dev See {IERC4626-previewDeposit}.
@@ -66,6 +66,88 @@ abstract contract ERC7540Deposit is ERC165, ERC7540Operator, IERC7540Deposit {
     /// @dev See {IERC4626-previewMint}.
     function previewMint(uint256 /* shares */) public view virtual returns (uint256) {
         revert ERC7540DepositPreviewNotAvailable();
+    }
+
+    /**
+     * @dev See {IERC7540Deposit-requestDeposit}.
+     *
+     * NOTE: Pending accounting is updated before {_transferIn} to follow Checks-Effects-Interactions.
+     * Assets with transfer hooks (e.g. ERC-777) may observe {totalAssets} temporarily understated
+     * during the transfer, since `_totalPendingDepositAssets` is already incremented while the
+     * token balance has not yet increased.
+     */
+    function requestDeposit(
+        uint256 assets,
+        address controller,
+        address owner
+    ) public virtual onlyOperatorOrController(owner, _msgSender()) returns (uint256) {
+        // Must revert with ERC20InsufficientBalance or equivalent error if there's not enough balance.
+        _transferIn(owner, assets);
+
+        return _requestDeposit(assets, controller, owner);
+    }
+
+    /**
+     * @dev Allows claiming shares from a Claimable deposit request.
+     * Calls the three-argument version with `receiver` as the `controller`. Complies with ERC-4626.
+     *
+     * See {IERC7540Deposit-deposit}.
+     *
+     * NOTE: this function should be overridden. To modify the behavior, override {IERC7540Deposit-deposit} instead.
+     */
+    function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
+        return deposit(assets, receiver, _msgSender());
+    }
+
+    /// @inheritdoc IERC7540Deposit
+    function deposit(
+        uint256 assets,
+        address receiver,
+        address controller
+    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
+        uint256 shares = _deposit(assets, receiver, controller);
+        _mint(receiver, shares);
+        return shares;
+    }
+
+    /**
+     * @dev Allows claiming shares from a Claimable deposit request by specifying the exact amount of shares.
+     * Calls the three-argument version with `receiver` as the `controller`. Complies with ERC-4626.
+     *
+     * See {IERC7540Deposit-mint}.
+     *
+     * NOTE: this function should be overridden. To modify the behavior, override {IERC7540Deposit-deposit} instead.
+     */
+    function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
+        return mint(shares, receiver, _msgSender());
+    }
+
+    /// @inheritdoc IERC7540Deposit
+    function mint(
+        uint256 shares,
+        address receiver,
+        address controller
+    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
+        uint256 assets = _mint(shares, receiver, controller);
+        _mint(receiver, shares);
+        return assets;
+    }
+
+    /****************************************************************************************************************
+     *                              Behavior specific to this ERC-7540 implementation                               *
+     *                                                                                                              *
+     * There should be overridden to modify the behavior of the vault, for example to introduce different requestId *
+     * to enforce delays on the asynchronous operations or to use a different storage for tracking.                 *
+     ****************************************************************************************************************/
+
+    /**
+     * @dev See {ERC4626-totalAssets}.
+     *
+     * Total assets pending redemption must be removed from the reported total assets
+     * otherwise pending assets would be treated as yield for outstanding shares.
+     */
+    function totalAssets() public view virtual override returns (uint256) {
+        return super.totalAssets() - totalPendingDepositAssets();
     }
 
     /// @dev Returns the total amount of assets currently pending in deposit requests.
@@ -86,7 +168,7 @@ abstract contract ERC7540Deposit is ERC165, ERC7540Operator, IERC7540Deposit {
         return _deposits[controller].claimableAssets;
     }
 
-    /// @dev Shares locked in the claimable deposit request.
+    /// TODO: non standard.
     function claimableDepositRequestShares(
         uint256 /* requestId */,
         address controller
@@ -96,165 +178,81 @@ abstract contract ERC7540Deposit is ERC165, ERC7540Operator, IERC7540Deposit {
 
     /// @inheritdoc IERC20Vault
     function maxDeposit(address controller) public view virtual override returns (uint256) {
-        return claimableDepositRequest(_depositRequestId(controller), controller);
+        return _deposits[controller].claimableAssets;
     }
 
     /// @inheritdoc IERC20Vault
     function maxMint(address controller) public view virtual override returns (uint256) {
-        return claimableDepositRequestShares(_depositRequestId(controller), controller);
-    }
-
-    /// @inheritdoc ERC165
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(ERC165, ERC7540Operator) returns (bool) {
-        return interfaceId == type(IERC7540Deposit).interfaceId || super.supportsInterface(interfaceId);
+        return _deposits[controller].claimableShares;
     }
 
     /**
-     * @dev See {IERC7540Deposit-requestDeposit}.
+     * @dev Registers a new deposit request in Pending state by recording the requested assets and updating the pending accounting.
      *
-     * NOTE: Pending accounting is updated before {_transferIn} to follow Checks-Effects-Interactions.
-     * Assets with transfer hooks (e.g. ERC-777) may observe {totalAssets} temporarily understated
-     * during the transfer, since `_totalPendingDepositAssets` is already incremented while the
-     * token balance has not yet increased.
+     * Note: `assets` have already been transferred to the vault before calling this function.
      */
-    function requestDeposit(
-        uint256 assets,
-        address controller,
-        address owner
-    ) public virtual onlyOperatorOrController(owner, _msgSender()) returns (uint256) {
-        uint256 requestId = _depositRequestId(controller);
-        _setPendingDeposit(controller, assets + pendingDepositRequest(requestId, controller));
+    function _requestDeposit(uint256 assets, address controller, address owner) internal virtual returns (uint256) {
+        // track pending deposits
+        _deposits[controller].pendingAssets += assets;
         _totalPendingDepositAssets += assets;
 
-        // Must revert with ERC20InsufficientBalance or equivalent error if there's not enough balance.
-        _transferIn(owner, assets);
-        emit DepositRequest(controller, owner, requestId, _msgSender(), assets);
-        return requestId;
-    }
-
-    /**
-     * @dev Allows claiming shares from a Claimable deposit request.
-     * Calls the three-argument version with `receiver` as the `controller`. Complies with ERC-4626.
-     *
-     * See {IERC7540Deposit-deposit}.
-     */
-    function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
-        return deposit(assets, receiver, receiver);
-    }
-
-    /// @inheritdoc IERC7540Deposit
-    function deposit(
-        uint256 assets,
-        address receiver,
-        address controller
-    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
-        uint256 requestId = _depositRequestId(controller);
-
-        // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
-        // while the claimable balance is reduced by a rounded up amount.
-        uint256 requestShares = claimableDepositRequestShares(requestId, controller);
-        uint256 requestAssets = claimableDepositRequest(requestId, controller);
-        uint256 shares = Math.mulDiv(assets, requestShares, requestAssets, Math.Rounding.Floor);
-        uint256 sharesUp = Math.mulDiv(assets, requestShares, requestAssets, Math.Rounding.Ceil);
-
-        _setClaimableDeposit(
-            controller,
-            requestAssets - assets,
-            Math.ternary(requestShares > sharesUp, requestShares - sharesUp, 0)
-        );
-        _update(address(this), receiver, shares);
-
-        emit IERC4626.Deposit(controller, receiver, assets, shares);
-        return shares;
-    }
-
-    /**
-     * @dev Allows claiming shares from a Claimable deposit request by specifying the exact amount of shares.
-     * Calls the three-argument version with `receiver` as the `controller`. Complies with ERC-4626.
-     *
-     * See {IERC7540Deposit-mint}.
-     */
-    function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
-        return mint(shares, receiver, receiver);
-    }
-
-    /// @inheritdoc IERC7540Deposit
-    function mint(
-        uint256 shares,
-        address receiver,
-        address controller
-    ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
-        uint256 requestId = _depositRequestId(controller);
-
-        // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
-        // while the claimable balance is reduced by a rounded up amount.
-        uint256 requestAssets = claimableDepositRequest(requestId, controller);
-        uint256 requestShares = claimableDepositRequestShares(requestId, controller);
-        uint256 assets = Math.mulDiv(shares, requestAssets, requestShares, Math.Rounding.Floor);
-        uint256 assetsUp = Math.mulDiv(shares, requestAssets, requestShares, Math.Rounding.Ceil);
-
-        _setClaimableDeposit(
-            controller,
-            Math.ternary(requestAssets > assetsUp, requestAssets - assetsUp, 0),
-            requestShares - shares
-        );
-        _update(address(this), receiver, shares);
-
-        emit IERC4626.Deposit(controller, receiver, assets, shares);
-        return assets;
+        emit DepositRequest(controller, owner, 0, _msgSender(), assets);
+        return 0;
     }
 
     /**
      * @dev Fulfills a pending deposit request by transitioning it from Pending to Claimable state.
      *
-     * This internal function should be called by the vault implementation when it's ready to process
-     * a deposit request. It converts the specified amount of pending assets to shares at the current
-     * exchange rate, mints those shares to the vault itself, and updates the claimable balance for
-     * the controller.
-     *
-     * The shares are minted to the vault contract and held there until the controller claims them
-     * via {deposit} or {mint}.
+     * This internal function should be called by the vault implementation when it's ready to process a deposit
+     * request. Arguments provide the exchange rate at which the operation is fulfilled, which may be different from
+     * the overall vault exchange rate. As documented in ERC-7540, it may also be different from the exchange rate at
+     * the time of the request.
      *
      * Requirements:
      *
      * * `assets` must not exceed the pending deposit amount for the controller
      */
-    function _fulfillDeposit(uint256 assets, address controller) internal virtual returns (uint256) {
-        uint256 requestId = _depositRequestId(controller);
-        uint256 pendingAssets = pendingDepositRequest(requestId, controller);
+    function _fulfillDeposit(uint256 assets, uint256 shares, address controller) internal virtual returns (uint256) {
+        uint256 pendingAssets = pendingDepositRequest(0, controller);
         require(assets <= pendingAssets, ERC7540DepositInsufficientPendingAssets(assets, pendingAssets));
 
-        uint256 shares = _depositPrice(assets);
-        uint256 claimableAssets = claimableDepositRequest(requestId, controller);
-        uint256 claimableShares = claimableDepositRequestShares(requestId, controller);
-        _mint(address(this), shares);
-        _setClaimableDeposit(controller, claimableAssets + assets, claimableShares + shares);
-        _setPendingDeposit(controller, pendingAssets - assets);
-        _totalPendingDepositAssets -= assets;
-        emit DepositClaimable(controller, requestId, assets, shares);
+        _deposits[controller].pendingAssets -= assets;
+        _deposits[controller].claimableAssets += assets;
+        _deposits[controller].claimableShares += shares;
+
+        emit DepositClaimable(controller, 0, assets, shares);
         return shares;
     }
 
-    /// @dev Returns the price of depositing the given assets.
-    function _depositPrice(uint256 assets) internal view virtual returns (uint256) {
-        return convertToShares(assets);
+    function _deposit(uint256 assets, address receiver, address controller) internal virtual returns (uint256) {
+        // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
+        // while the claimable balance is reduced by a rounded up amount.
+        uint256 claimableShares = maxMint(controller);
+        uint256 claimableAssets = maxDeposit(controller);
+        uint256 shares = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Floor);
+        uint256 sharesUp = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Ceil);
+
+        _totalPendingDepositAssets = Math.saturatingSub(_totalPendingDepositAssets, assets);
+        _deposits[controller].claimableAssets = Math.saturatingSub(claimableAssets, assets);
+        _deposits[controller].claimableShares = Math.saturatingSub(claimableShares, sharesUp);
+
+        emit IERC4626.Deposit(controller, receiver, assets, shares);
+        return shares;
     }
 
-    /// @dev Sets the claimable deposit request for the controller.
-    function _setClaimableDeposit(address controller, uint256 assets, uint256 shares) internal virtual {
-        _deposits[controller].claimableAssets = assets;
-        _deposits[controller].claimableShares = shares;
-    }
+    function _mint(uint256 shares, address receiver, address controller) internal virtual returns (uint256) {
+        // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
+        // while the claimable balance is reduced by a rounded up amount.
+        uint256 claimableShares = maxMint(controller);
+        uint256 claimableAssets = maxDeposit(controller);
+        uint256 assets = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Floor);
+        uint256 assetsUp = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Ceil);
 
-    /// @dev Sets the pending deposit request for the controller.
-    function _setPendingDeposit(address controller, uint256 assets) internal virtual {
-        _deposits[controller].pendingAssets = assets;
-    }
+        _totalPendingDepositAssets = Math.saturatingSub(_totalPendingDepositAssets, assetsUp);
+        _deposits[controller].claimableAssets = Math.saturatingSub(claimableAssets, assetsUp);
+        _deposits[controller].claimableShares = Math.saturatingSub(claimableShares, shares);
 
-    /// @dev Returns the request ID for the given assets, controller, and owner
-    function _depositRequestId(address /* controller */) internal view virtual returns (uint256) {
-        return 0; // Assume requests are non-fungible and all have ID = 0
+        emit IERC4626.Deposit(controller, receiver, assets, shares);
+        return assets;
     }
 }

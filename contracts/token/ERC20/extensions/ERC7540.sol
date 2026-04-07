@@ -8,6 +8,8 @@ import {ERC7540Redeem} from "./ERC7540Redeem.sol";
 import {ERC7540Operator} from "./ERC7540Operator.sol";
 import {ERC20Vault} from "./ERC20Vault.sol";
 import {IERC20Vault} from "./IERC20Vault.sol";
+import {ERC20} from "./../ERC20.sol";
+import {IERC20} from "./../IERC20.sol";
 import {ERC165} from "../../../utils/introspection/ERC165.sol";
 /**
  * @dev Implementation of the ERC-7540 "Asynchronous ERC-4626 Tokenized Vaults" as defined in
@@ -24,6 +26,11 @@ import {ERC165} from "../../../utils/introspection/ERC165.sol";
  * Users should be cautious when approving operators as they gain significant control over both assets and shares.
  */
 abstract contract ERC7540 is ERC165, ERC7540Redeem, ERC7540Deposit, IERC4626 {
+    /// @inheritdoc ERC7540Redeem
+    function totalSupply() public view virtual override(ERC7540Redeem, ERC20, IERC20) returns (uint256) {
+        return super.totalSupply();
+    }
+
     /// @inheritdoc ERC7540Deposit
     function totalAssets() public view virtual override(ERC7540Deposit, ERC20Vault, IERC20Vault) returns (uint256) {
         return super.totalAssets();

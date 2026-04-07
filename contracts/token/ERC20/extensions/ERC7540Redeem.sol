@@ -51,6 +51,17 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
     }
 
     mapping(address controller => PendingRedeem) private _redeems;
+    uint256 private _totalPendingRedeemShares;
+
+    /****************************************************************************************************************
+     *                          Generic ERC-7540 behavior, applies to all implementations                           *
+     ****************************************************************************************************************/
+    /// @inheritdoc ERC165
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(ERC165, ERC7540Operator) returns (bool) {
+        return interfaceId == type(IERC7540Redeem).interfaceId || super.supportsInterface(interfaceId);
+    }
 
     /// @dev See {IERC4626-previewRedeem}.
     function previewRedeem(uint256 /* shares */) public view virtual returns (uint256) {
@@ -63,54 +74,14 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
     }
 
     /// @inheritdoc IERC7540Redeem
-    function pendingRedeemRequest(uint256 /* requestId */, address controller) public view virtual returns (uint256) {
-        return _redeems[controller].pendingShares;
-    }
-
-    /// @inheritdoc IERC7540Redeem
-    function claimableRedeemRequest(uint256 /* requestId */, address controller) public view virtual returns (uint256) {
-        return _redeems[controller].claimableShares;
-    }
-
-    /// @dev Assets locked in the claimable redeem request.
-    function claimableRedeemRequestAssets(
-        uint256 /* requestId */,
-        address controller
-    ) public view virtual returns (uint256) {
-        return _redeems[controller].claimableAssets;
-    }
-
-    /// @inheritdoc IERC20Vault
-    function maxWithdraw(address controller) public view virtual override returns (uint256) {
-        return claimableRedeemRequestAssets(_redeemRequestId(controller), controller);
-    }
-
-    /// @inheritdoc IERC20Vault
-    function maxRedeem(address controller) public view virtual override returns (uint256) {
-        return claimableRedeemRequest(_redeemRequestId(controller), controller);
-    }
-
-    /// @inheritdoc ERC165
-    function supportsInterface(
-        bytes4 interfaceId
-    ) public view virtual override(ERC165, ERC7540Operator) returns (bool) {
-        return interfaceId == type(IERC7540Redeem).interfaceId || super.supportsInterface(interfaceId);
-    }
-
-    /// @inheritdoc IERC7540Redeem
     function requestRedeem(uint256 shares, address controller, address owner) public virtual returns (uint256) {
         address sender = _msgSender();
         if (owner != sender && !isOperator(owner, sender)) {
             _spendAllowance(owner, sender, shares);
         }
+        _burn(owner, shares);
 
-        uint256 requestId = _redeemRequestId(controller);
-        _setPendingRedeem(controller, shares + pendingRedeemRequest(requestId, controller));
-
-        // Must revert with ERC20InsufficientBalance if there's not enough balance.
-        _lockSharesIn(shares, owner);
-        emit RedeemRequest(controller, owner, requestId, sender, shares);
-        return requestId;
+        return _requestRedeem(shares, controller, owner);
     }
 
     /**
@@ -126,23 +97,8 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
         address receiver,
         address controller
     ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
-        uint256 requestId = _redeemRequestId(controller);
-
-        // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
-        // while the claimable balance is reduced by a rounded up amount.
-        uint256 requestShares = claimableRedeemRequest(requestId, controller);
-        uint256 requestAssets = claimableRedeemRequestAssets(requestId, controller);
-        uint256 shares = Math.mulDiv(assets, requestShares, requestAssets, Math.Rounding.Floor);
-        uint256 sharesUp = Math.mulDiv(assets, requestShares, requestAssets, Math.Rounding.Ceil);
-
-        _setClaimableRedeem(
-            controller,
-            requestAssets - assets,
-            Math.ternary(requestShares > sharesUp, requestShares - sharesUp, 0)
-        );
+        uint256 shares = _withdraw(assets, receiver, controller);
         _transferOut(receiver, assets);
-
-        emit IERC4626.Withdraw(_msgSender(), receiver, controller, assets, shares);
         return shares;
     }
 
@@ -159,24 +115,73 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
         address receiver,
         address controller
     ) public virtual onlyOperatorOrController(controller, _msgSender()) returns (uint256) {
-        uint256 requestId = _redeemRequestId(controller);
-
-        // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
-        // while the claimable balance is reduced by a rounded up amount.
-        uint256 requestAssets = claimableRedeemRequestAssets(requestId, controller);
-        uint256 requestShares = claimableRedeemRequest(requestId, controller);
-        uint256 assets = Math.mulDiv(shares, requestAssets, requestShares, Math.Rounding.Floor);
-        uint256 assetsUp = Math.mulDiv(shares, requestAssets, requestShares, Math.Rounding.Ceil);
-
-        _setClaimableRedeem(
-            controller,
-            Math.ternary(requestAssets > assetsUp, requestAssets - assetsUp, 0),
-            requestShares - shares
-        );
+        uint256 assets = _redeem(shares, receiver, controller);
         _transferOut(receiver, assets);
-
-        emit IERC4626.Withdraw(_msgSender(), receiver, controller, assets, shares);
         return assets;
+    }
+
+    /****************************************************************************************************************
+     *                              Behavior specific to this ERC-7540 implementation                               *
+     *                                                                                                              *
+     * There should be overridden to modify the behavior of the vault, for example to introduce different requestId *
+     * to enforce delays on the asynchronous operations or to use a different storage for tracking.                 *
+     ****************************************************************************************************************/
+
+    /**
+     * @dev See {ERC4626-totalSupply}.
+     *
+     * Total shares pending redemption must be added from the reported total supply
+     * otherwise pending assets would be treated as yield for outstanding shares.
+     */
+    function totalSupply() public view virtual override returns (uint256) {
+        return super.totalSupply() + totalPendingRedeemShares();
+    }
+
+    /// @dev Returns the total amount of shares currently pending in redeem requests.
+    function totalPendingRedeemShares() public view virtual returns (uint256) {
+        return _totalPendingRedeemShares;
+    }
+
+    /// @inheritdoc IERC7540Redeem
+    function pendingRedeemRequest(uint256 /* requestId */, address controller) public view virtual returns (uint256) {
+        return _redeems[controller].pendingShares;
+    }
+
+    /// @inheritdoc IERC7540Redeem
+    function claimableRedeemRequest(uint256 /* requestId */, address controller) public view virtual returns (uint256) {
+        return _redeems[controller].claimableShares;
+    }
+
+    /// TODO: non standard
+    function claimableRedeemRequestAssets(
+        uint256 /* requestId */,
+        address controller
+    ) public view virtual returns (uint256) {
+        return _redeems[controller].claimableAssets;
+    }
+
+    /// @inheritdoc IERC20Vault
+    function maxWithdraw(address controller) public view virtual override returns (uint256) {
+        return _redeems[controller].claimableAssets;
+    }
+
+    /// @inheritdoc IERC20Vault
+    function maxRedeem(address controller) public view virtual override returns (uint256) {
+        return _redeems[controller].claimableShares;
+    }
+
+    /**
+     * @dev Registers a new redeem request in Pending state by recording the requested assets and updating the pending accounting.
+     *
+     * Note: `shares` have already been burned before calling this function.
+     */
+    function _requestRedeem(uint256 shares, address controller, address owner) internal virtual returns (uint256) {
+        // track pending redeem
+        _redeems[controller].pendingShares += shares;
+        _totalPendingRedeemShares += shares;
+
+        emit RedeemRequest(controller, owner, 0, _msgSender(), shares);
+        return 0;
     }
 
     /**
@@ -198,62 +203,47 @@ abstract contract ERC7540Redeem is ERC165, ERC7540Operator, IERC7540Redeem {
      *
      * * `shares` must not exceed the pending redeem amount for the controller
      */
-    function _fulfillRedeem(uint256 shares, address controller) internal virtual returns (uint256) {
-        uint256 requestId = _redeemRequestId(controller);
-        uint256 pendingShares = pendingRedeemRequest(requestId, controller);
+    function _fulfillRedeem(uint256 shares, uint256 assets, address controller) internal virtual returns (uint256) {
+        uint256 pendingShares = pendingRedeemRequest(0, controller);
         require(shares <= pendingShares, ERC7540RedeemInsufficientPendingShares(shares, pendingShares));
 
-        uint256 assets = _redeemPrice(shares);
-        uint256 claimableAssets = claimableRedeemRequestAssets(requestId, controller);
-        uint256 claimableShares = claimableRedeemRequest(requestId, controller);
-        _completeSharesIn(shares, controller);
-        _setClaimableRedeem(controller, claimableAssets + assets, claimableShares + shares);
-        _setPendingRedeem(controller, pendingShares - shares);
-        emit RedeemClaimable(controller, requestId, assets, shares);
+        _redeems[controller].pendingShares -= shares;
+        _redeems[controller].claimableShares += shares;
+        _redeems[controller].claimableAssets += assets;
+
+        emit RedeemClaimable(controller, 0, assets, shares);
         return assets;
     }
 
-    /**
-     * @dev Returns the asset amount corresponding to `shares` for a redemption fulfillment.
-     * Defaults to the live {convertToAssets} rate. Override this function to use a snapshotted
-     * or custom rate when batch-fulfilling multiple requests in {_fulfillRedeem}, since each
-     * fulfillment burns shares and shifts the live exchange rate upward.
-     */
-    function _redeemPrice(uint256 shares) internal view virtual returns (uint256) {
-        return convertToAssets(shares);
+    function _withdraw(uint256 assets, address receiver, address controller) internal virtual returns (uint256) {
+        // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
+        // while the claimable balance is reduced by a rounded up amount.
+        uint256 claimableShares = maxRedeem(controller);
+        uint256 claimableAssets = maxWithdraw(controller);
+        uint256 shares = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Floor);
+        uint256 sharesUp = Math.mulDiv(assets, claimableShares, claimableAssets, Math.Rounding.Ceil);
+
+        _totalPendingRedeemShares = Math.saturatingSub(_totalPendingRedeemShares, sharesUp);
+        _redeems[controller].claimableShares = Math.saturatingSub(claimableShares, sharesUp);
+        _redeems[controller].claimableAssets = Math.saturatingSub(claimableAssets, assets);
+
+        emit IERC4626.Withdraw(_msgSender(), receiver, controller, assets, shares);
+        return shares;
     }
 
-    /// @dev Sets the claimable redeem request for the controller.
-    function _setClaimableRedeem(address controller, uint256 assets, uint256 shares) internal virtual {
-        _redeems[controller].claimableAssets = assets;
-        _redeems[controller].claimableShares = shares;
-    }
+    function _redeem(uint256 shares, address receiver, address controller) internal virtual returns (uint256) {
+        // Claiming partially introduces precision loss. The user therefore receives a rounded down amount,
+        // while the claimable balance is reduced by a rounded up amount.
+        uint256 claimableAssets = maxWithdraw(controller);
+        uint256 claimableShares = maxRedeem(controller);
+        uint256 assets = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Floor);
+        uint256 assetsUp = Math.mulDiv(shares, claimableAssets, claimableShares, Math.Rounding.Ceil);
 
-    /// @dev Sets the pending redeem request for the controller.
-    function _setPendingRedeem(address controller, uint256 shares) internal virtual {
-        _redeems[controller].pendingShares = shares;
-    }
+        _totalPendingRedeemShares = Math.saturatingSub(_totalPendingRedeemShares, shares);
+        _redeems[controller].claimableShares = Math.saturatingSub(claimableShares, shares);
+        _redeems[controller].claimableAssets = Math.saturatingSub(claimableAssets, assetsUp);
 
-    /**
-     * @dev Performs a transfer in of shares. By default, it takes the shares from the owner.
-     * Used by {requestRedeem}.
-     *
-     * IMPORTANT: If overriding to burn shares immediately (instead of holding them in the vault),
-     * you must ALSO override {_fulfillRedeem} to use a snapshotted exchange rate, since the
-     * shares will no longer exist in `totalSupply()` at fulfillment time. Simply overriding
-     * {_completeSharesIn} to do nothing is not sufficient.
-     */
-    function _lockSharesIn(uint256 shares, address owner) internal virtual {
-        _update(owner, address(this), shares);
-    }
-
-    /// @dev Performs a fulfillment of a redeem request. By default, it burns the shares. Used by {_fulfillRedeem}.
-    function _completeSharesIn(uint256 shares, address /* controller */) internal virtual {
-        _burn(address(this), shares);
-    }
-
-    /// @dev Returns the request ID for the given redeem parameters.
-    function _redeemRequestId(address /* controller */) internal view virtual returns (uint256) {
-        return 0; // Assume requests are non-fungible and all have ID = 0
+        emit IERC4626.Withdraw(_msgSender(), receiver, controller, assets, shares);
+        return assets;
     }
 }

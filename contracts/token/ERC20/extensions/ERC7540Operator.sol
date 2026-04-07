@@ -45,14 +45,14 @@ abstract contract ERC7540Operator is ERC165, ERC20Vault, IERC7540Operator {
      */
     constructor(IERC20 asset_) ERC20Vault(asset_) {}
 
-    /// @inheritdoc IERC7540Operator
-    function isOperator(address controller, address operator) public view returns (bool status) {
-        return _isOperator[controller][operator];
-    }
-
     /// @inheritdoc ERC165
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         return interfaceId == type(IERC7540Operator).interfaceId || super.supportsInterface(interfaceId);
+    }
+
+    /// @inheritdoc IERC7540Operator
+    function isOperator(address controller, address operator) public view returns (bool status) {
+        return _isOperator[controller][operator];
     }
 
     /// @inheritdoc IERC7540Operator
@@ -67,10 +67,8 @@ abstract contract ERC7540Operator is ERC165, ERC20Vault, IERC7540Operator {
      * Emits an {OperatorSet} event if the approval status changes.
      */
     function _setOperator(address controller, address operator, bool approved) internal {
-        if (_isOperator[controller][operator] != approved) {
-            _isOperator[controller][operator] = approved;
-            emit OperatorSet(controller, operator, approved);
-        }
+        _isOperator[controller][operator] = approved;
+        emit OperatorSet(controller, operator, approved);
     }
 
     /// @dev Reverts if the `operator` is not the caller or an operator of the `controller`

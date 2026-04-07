@@ -60,7 +60,7 @@ function shouldBehaveLikeERC7540Deposit() {
         await this.asset.$_mint(this.holder, depositAmount);
         await this.asset.connect(this.holder).approve(this.token, depositAmount);
         await this.token.connect(this.holder).requestDeposit(depositAmount, this.holder, this.holder);
-        await this.token.$_fulfillDeposit(depositAmount, this.holder);
+        await this.token.$_fulfillDeposit(depositAmount, this.token.convertToShares(depositAmount), this.holder);
 
         await expect(this.token.totalAssets()).to.eventually.equal(depositAmount);
       });
@@ -139,7 +139,7 @@ function shouldBehaveLikeERC7540Deposit() {
       });
 
       it('reverts when fulfilling more than pending', async function () {
-        await expect(this.token.$_fulfillDeposit(depositAmount + 1n, this.holder))
+        await expect(this.token.$_fulfillDeposit(depositAmount + 1n, 0n, this.holder))
           .to.be.revertedWithCustomError(this.token, 'ERC7540DepositInsufficientPendingAssets')
           .withArgs(depositAmount + 1n, depositAmount);
       });
@@ -147,7 +147,7 @@ function shouldBehaveLikeERC7540Deposit() {
       describe('full fulfillment', function () {
         beforeEach(async function () {
           this.expectedShares = depositAmount; // 1:1 exchange rate in empty vault
-          this.tx = await this.token.$_fulfillDeposit(depositAmount, this.holder);
+          this.tx = await this.token.$_fulfillDeposit(depositAmount, depositAmount, this.holder); // 1:1 exhange rate
         });
 
         it('emits DepositClaimable', async function () {
@@ -181,7 +181,7 @@ function shouldBehaveLikeERC7540Deposit() {
         const partialAmount = 400n;
 
         beforeEach(async function () {
-          this.tx = await this.token.$_fulfillDeposit(partialAmount, this.holder);
+          this.tx = await this.token.$_fulfillDeposit(partialAmount, partialAmount, this.holder); // 1:1 exhange rate
         });
 
         it('emits DepositClaimable for the partial amount', async function () {
@@ -204,7 +204,7 @@ function shouldBehaveLikeERC7540Deposit() {
         await this.asset.$_mint(this.holder, depositAmount);
         await this.asset.connect(this.holder).approve(this.token, depositAmount);
         await this.token.connect(this.holder).requestDeposit(depositAmount, this.holder, this.holder);
-        await this.token.$_fulfillDeposit(depositAmount, this.holder);
+        await this.token.$_fulfillDeposit(depositAmount, depositAmount, this.holder); // 1:1 exchange rate
         this.expectedShares = depositAmount; // 1:1 rate
       });
 
@@ -286,7 +286,7 @@ function shouldBehaveLikeERC7540Deposit() {
         await this.asset.$_mint(this.holder, depositAmount);
         await this.asset.connect(this.holder).approve(this.token, depositAmount);
         await this.token.connect(this.holder).requestDeposit(depositAmount, this.holder, this.holder);
-        await this.token.$_fulfillDeposit(depositAmount, this.holder);
+        await this.token.$_fulfillDeposit(depositAmount, depositAmount, this.holder); // 1:1 exchange rate
         this.expectedShares = depositAmount; // 1:1 rate
       });
 
