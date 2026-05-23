@@ -2,7 +2,7 @@ import { network } from 'hardhat';
 import { expect } from 'chai';
 import { MAX_UINT64 } from '../helpers/constants';
 import { product } from '../helpers/iterate';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 
 const {
   ethers,
@@ -46,7 +46,7 @@ describe('RLP', function () {
     for (const addr of [
       ethers.ZeroAddress, // zero address
       '0x0000F90827F1C53a10cb7A02335B175320002935', // address with leading zeros
-      random.address(), // random address
+      types.address.random(), // random address
     ]) {
       const expected = ethers.encodeRlp(addr);
       await expect(this.mock.$encode_address(addr)).to.eventually.equal(expected);
@@ -98,7 +98,7 @@ describe('RLP', function () {
       '0x0000000000000000000000000000000000000000000000000000000000000000',
       '0x0000000000000000000000000000000000000000000000000000000000000001',
       '0x1000000000000000000000000000000000000000000000000000000000000000',
-      random.bytes32(),
+      types.bytes32.random(),
     ]) {
       const encoded = ethers.encodeRlp(input);
       await expect(this.mock.$encode_bytes32(input)).to.eventually.equal(encoded);
@@ -153,7 +153,7 @@ describe('RLP', function () {
     for (const input of [
       '0xab', // 1 byte
       '0x1234', // 2 bytes
-      random.hexBytes(55), // 55 bytes (maximum for short encoding)
+      types.hexBytes.random(55), // 55 bytes (maximum for short encoding)
     ]) {
       const expected = ethers.encodeRlp(input);
 
@@ -164,8 +164,8 @@ describe('RLP', function () {
 
   it('encode/decode long buffers (>55 bytes)', async function () {
     for (const input of [
-      random.hexBytes(56), // 56 bytes (minimum for long encoding)
-      random.hexBytes(128), // 128 bytes
+      types.hexBytes.random(56), // 56 bytes (minimum for long encoding)
+      types.hexBytes.random(128), // 128 bytes
     ]) {
       const expected = ethers.encodeRlp(input);
 
@@ -213,7 +213,7 @@ describe('RLP', function () {
       [
         ethers.ZeroAddress, // zero address
         '0x0000F90827F1C53a10cb7A02335B175320002935', // address with heading zeros
-        random.address(), // random address
+        types.address.random(), // random address
       ],
       [0n, 1n, 42n, 65535n, MAX_UINT64],
     )) {

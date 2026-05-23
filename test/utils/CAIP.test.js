@@ -1,7 +1,7 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
 import { CHAINS } from '../helpers/chains';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 
 const {
   ethers,
@@ -30,7 +30,7 @@ describe('CAIP utilities', function () {
   });
 
   describe('CAIP-10', function () {
-    const account = random.address();
+    const account = types.address.random();
 
     before(async function () {
       this.mock = await ethers.deployContract('$CAIP10');

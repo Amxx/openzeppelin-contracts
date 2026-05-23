@@ -1,7 +1,7 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
 import * as precompile from '../../helpers/precompiles';
-import * as random from '../../helpers/random';
+import * as types from '../../helpers/types';
 import { P256SigningKey, NonNativeSigner } from '../../helpers/signers';
 
 const {
@@ -192,7 +192,7 @@ describe('SignatureChecker (ERC1271)', function () {
         });
 
         it('with invalid key', async function () {
-          const signer = ethers.concat([this.verifier.target, random.bytes(32)]);
+          const signer = ethers.concat([this.verifier.target, types.bytes.random(32)]);
           const signature = await aliceP256.signMessage(TEST_MESSAGE);
 
           await expect(this.mock.$isValidSignatureNow(ethers.Typed.bytes(signer), TEST_MESSAGE_HASH, signature)).to
@@ -205,14 +205,14 @@ describe('SignatureChecker (ERC1271)', function () {
             aliceP256.signingKey.publicKey.qx,
             aliceP256.signingKey.publicKey.qy,
           ]);
-          const signature = random.bytes(65); // invalid (random) signature
+          const signature = types.bytes.random(65); // invalid (random) signature
 
           await expect(this.mock.$isValidSignatureNow(ethers.Typed.bytes(signer), TEST_MESSAGE_HASH, signature)).to
             .eventually.be.false;
         });
 
         it('with signer too short', async function () {
-          const signer = random.bytes(19); // too short
+          const signer = types.bytes.random(19); // too short
           const signature = await aliceP256.signMessage(TEST_MESSAGE);
           await expect(this.mock.$isValidSignatureNow(ethers.Typed.bytes(signer), TEST_MESSAGE_HASH, signature)).to
             .eventually.be.false;
@@ -221,9 +221,6 @@ describe('SignatureChecker (ERC1271)', function () {
     });
 
     describe('areValidSignaturesNow', function () {
-      const sortSigners = (...signers) =>
-        signers.sort(({ signer: a }, { signer: b }) => ethers.keccak256(b) - ethers.keccak256(a));
-
       it('should validate a single signature', async function () {
         const signer = ethers.zeroPadValue(this.signer.address, 20);
         const signature = await this.signer.signMessage(TEST_MESSAGE);
@@ -232,23 +229,26 @@ describe('SignatureChecker (ERC1271)', function () {
       });
 
       it('should validate multiple signatures with different signer types', async function () {
-        const signers = sortSigners(
-          {
-            signer: ethers.zeroPadValue(this.signer.address, 20),
-            signature: await this.signer.signMessage(TEST_MESSAGE),
-          },
-          {
-            signer: ethers.zeroPadValue(this.wallet.target, 20),
-            signature: await this.signer.signMessage(TEST_MESSAGE),
-          },
-          {
-            signer: ethers.concat([
-              this.verifier.target,
-              aliceP256.signingKey.publicKey.qx,
-              aliceP256.signingKey.publicKey.qy,
-            ]),
-            signature: await aliceP256.signMessage(TEST_MESSAGE),
-          },
+        const signers = types.bytes.sortByHash(
+          [
+            {
+              signer: ethers.zeroPadValue(this.signer.address, 20),
+              signature: await this.signer.signMessage(TEST_MESSAGE),
+            },
+            {
+              signer: ethers.zeroPadValue(this.wallet.target, 20),
+              signature: await this.signer.signMessage(TEST_MESSAGE),
+            },
+            {
+              signer: ethers.concat([
+                this.verifier.target,
+                aliceP256.signingKey.publicKey.qx,
+                aliceP256.signingKey.publicKey.qy,
+              ]),
+              signature: await aliceP256.signMessage(TEST_MESSAGE),
+            },
+          ],
+          s => s.signer,
         );
 
         await expect(
@@ -261,15 +261,18 @@ describe('SignatureChecker (ERC1271)', function () {
       });
 
       it('should validate multiple EOA signatures', async function () {
-        const signers = sortSigners(
-          {
-            signer: ethers.zeroPadValue(this.signer.address, 20),
-            signature: await this.signer.signMessage(TEST_MESSAGE),
-          },
-          {
-            signer: ethers.zeroPadValue(this.extraSigner.address, 20),
-            signature: await this.extraSigner.signMessage(TEST_MESSAGE),
-          },
+        const signers = types.bytes.sortByHash(
+          [
+            {
+              signer: ethers.zeroPadValue(this.signer.address, 20),
+              signature: await this.signer.signMessage(TEST_MESSAGE),
+            },
+            {
+              signer: ethers.zeroPadValue(this.extraSigner.address, 20),
+              signature: await this.extraSigner.signMessage(TEST_MESSAGE),
+            },
+          ],
+          s => s.signer,
         );
 
         await expect(
@@ -282,15 +285,18 @@ describe('SignatureChecker (ERC1271)', function () {
       });
 
       it('should validate multiple ERC-1271 wallet signatures', async function () {
-        const signers = sortSigners(
-          {
-            signer: ethers.zeroPadValue(this.wallet.target, 20),
-            signature: await this.signer.signMessage(TEST_MESSAGE),
-          },
-          {
-            signer: ethers.zeroPadValue(this.wallet2.target, 20),
-            signature: await this.extraSigner.signMessage(TEST_MESSAGE),
-          },
+        const signers = types.bytes.sortByHash(
+          [
+            {
+              signer: ethers.zeroPadValue(this.wallet.target, 20),
+              signature: await this.signer.signMessage(TEST_MESSAGE),
+            },
+            {
+              signer: ethers.zeroPadValue(this.wallet2.target, 20),
+              signature: await this.extraSigner.signMessage(TEST_MESSAGE),
+            },
+          ],
+          s => s.signer,
         );
 
         await expect(
@@ -303,23 +309,26 @@ describe('SignatureChecker (ERC1271)', function () {
       });
 
       it('should validate multiple ERC-7913 signatures (ordered by ID)', async function () {
-        const signers = sortSigners(
-          {
-            signer: ethers.concat([
-              this.verifier.target,
-              aliceP256.signingKey.publicKey.qx,
-              aliceP256.signingKey.publicKey.qy,
-            ]),
-            signature: await aliceP256.signMessage(TEST_MESSAGE),
-          },
-          {
-            signer: ethers.concat([
-              this.verifier.target,
-              bobP256.signingKey.publicKey.qx,
-              bobP256.signingKey.publicKey.qy,
-            ]),
-            signature: await bobP256.signMessage(TEST_MESSAGE),
-          },
+        const signers = types.bytes.sortByHash(
+          [
+            {
+              signer: ethers.concat([
+                this.verifier.target,
+                aliceP256.signingKey.publicKey.qx,
+                aliceP256.signingKey.publicKey.qy,
+              ]),
+              signature: await aliceP256.signMessage(TEST_MESSAGE),
+            },
+            {
+              signer: ethers.concat([
+                this.verifier.target,
+                bobP256.signingKey.publicKey.qx,
+                bobP256.signingKey.publicKey.qy,
+              ]),
+              signature: await bobP256.signMessage(TEST_MESSAGE),
+            },
+          ],
+          s => s.signer,
         );
 
         await expect(
@@ -332,24 +341,29 @@ describe('SignatureChecker (ERC1271)', function () {
       });
 
       it('should validate multiple ERC-7913 signatures (unordered)', async function () {
-        const signers = sortSigners(
-          {
-            signer: ethers.concat([
-              this.verifier.target,
-              aliceP256.signingKey.publicKey.qx,
-              aliceP256.signingKey.publicKey.qy,
-            ]),
-            signature: await aliceP256.signMessage(TEST_MESSAGE),
-          },
-          {
-            signer: ethers.concat([
-              this.verifier.target,
-              bobP256.signingKey.publicKey.qx,
-              bobP256.signingKey.publicKey.qy,
-            ]),
-            signature: await bobP256.signMessage(TEST_MESSAGE),
-          },
-        ).reverse(); // reverse
+        const signers = types.bytes
+          .sortByHash(
+            [
+              {
+                signer: ethers.concat([
+                  this.verifier.target,
+                  aliceP256.signingKey.publicKey.qx,
+                  aliceP256.signingKey.publicKey.qy,
+                ]),
+                signature: await aliceP256.signMessage(TEST_MESSAGE),
+              },
+              {
+                signer: ethers.concat([
+                  this.verifier.target,
+                  bobP256.signingKey.publicKey.qx,
+                  bobP256.signingKey.publicKey.qy,
+                ]),
+                signature: await bobP256.signMessage(TEST_MESSAGE),
+              },
+            ],
+            s => s.signer,
+          )
+          .reverse(); // reverse
 
         await expect(
           this.mock.$areValidSignaturesNow(
@@ -361,15 +375,18 @@ describe('SignatureChecker (ERC1271)', function () {
       });
 
       it('should return false if any signature is invalid', async function () {
-        const signers = sortSigners(
-          {
-            signer: ethers.zeroPadValue(this.signer.address, 20),
-            signature: await this.signer.signMessage(TEST_MESSAGE),
-          },
-          {
-            signer: ethers.zeroPadValue(this.extraSigner.address, 20),
-            signature: await this.extraSigner.signMessage(WRONG_MESSAGE),
-          },
+        const signers = types.bytes.sortByHash(
+          [
+            {
+              signer: ethers.zeroPadValue(this.signer.address, 20),
+              signature: await this.signer.signMessage(TEST_MESSAGE),
+            },
+            {
+              signer: ethers.zeroPadValue(this.extraSigner.address, 20),
+              signature: await this.extraSigner.signMessage(WRONG_MESSAGE),
+            },
+          ],
+          s => s.signer,
         );
 
         await expect(
@@ -382,15 +399,18 @@ describe('SignatureChecker (ERC1271)', function () {
       });
 
       it('should return false if there are duplicate signers', async function () {
-        const signers = sortSigners(
-          {
-            signer: ethers.zeroPadValue(this.signer.address, 20),
-            signature: await this.signer.signMessage(TEST_MESSAGE),
-          },
-          {
-            signer: ethers.zeroPadValue(this.signer.address, 20),
-            signature: await this.signer.signMessage(TEST_MESSAGE),
-          },
+        const signers = types.bytes.sortByHash(
+          [
+            {
+              signer: ethers.zeroPadValue(this.signer.address, 20),
+              signature: await this.signer.signMessage(TEST_MESSAGE),
+            },
+            {
+              signer: ethers.zeroPadValue(this.signer.address, 20),
+              signature: await this.signer.signMessage(TEST_MESSAGE),
+            },
+          ],
+          s => s.signer,
         );
 
         await expect(
@@ -403,15 +423,18 @@ describe('SignatureChecker (ERC1271)', function () {
       });
 
       it('should return false if signatures array length does not match signers array length', async function () {
-        const signers = sortSigners(
-          {
-            signer: ethers.zeroPadValue(this.signer.address, 20),
-            signature: await this.signer.signMessage(TEST_MESSAGE),
-          },
-          {
-            signer: ethers.zeroPadValue(this.extraSigner.address, 20),
-            signature: await this.extraSigner.signMessage(TEST_MESSAGE),
-          },
+        const signers = types.bytes.sortByHash(
+          [
+            {
+              signer: ethers.zeroPadValue(this.signer.address, 20),
+              signature: await this.signer.signMessage(TEST_MESSAGE),
+            },
+            {
+              signer: ethers.zeroPadValue(this.extraSigner.address, 20),
+              signature: await this.extraSigner.signMessage(TEST_MESSAGE),
+            },
+          ],
+          s => s.signer,
         );
 
         await expect(

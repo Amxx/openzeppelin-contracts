@@ -51,8 +51,8 @@ export class ERC7739Signer extends ethers.AbstractSigner {
     return this.#signer.signTypedData(this.#domain, { PersonalSign }, ERC4337Utils.preparePersonalSign(message));
   }
 
-  async signTypedData(domain, types, value) {
-    const { allTypes, contentsTypeName, contentsDescr } = ERC4337Utils.getContentsDetail(types);
+  async signTypedData(domain, types_, value) {
+    const { allTypes, contentsTypeName, contentsDescr } = ERC4337Utils.getContentsDetail(types_);
 
     return Promise.resolve(
       this.#signer.signTypedData(domain, allTypes, ERC4337Utils.prepareSignTypedData(value, this.#domain)),
@@ -60,7 +60,7 @@ export class ERC7739Signer extends ethers.AbstractSigner {
       ethers.concat([
         signature,
         ethers.TypedDataEncoder.hashDomain(domain), // appDomainSeparator
-        ethers.TypedDataEncoder.hashStruct(contentsTypeName, types, value), // contentsHash
+        ethers.TypedDataEncoder.hashStruct(contentsTypeName, types_, value), // contentsHash
         ethers.toUtf8Bytes(contentsDescr),
         ethers.toBeHex(contentsDescr.length, 2),
       ]),
@@ -72,8 +72,7 @@ export class ERC4337Utils {
   static preparePersonalSign(message) {
     return {
       prefixed: ethers.concat([
-        ethers.toUtf8Bytes(ethers.MessagePrefix),
-        ethers.toUtf8Bytes(String(message.length)),
+        ethers.toUtf8Bytes(ethers.MessagePrefix + message.length.toString()),
         typeof message === 'string' ? ethers.toUtf8Bytes(message) : message,
       ]),
     };

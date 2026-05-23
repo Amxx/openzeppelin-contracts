@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { Ballot, getDomain } from '../helpers/eip712';
 import { ProposalState, VoteType } from '../helpers/enums';
 import { GovernorHelper } from '../helpers/governance';
+import * as types from '../helpers/types';
 import { shouldSupportInterfaces } from '../utils/introspection/SupportsInterface.behavior';
 import { shouldBehaveLikeERC6372 } from './utils/ERC6372.behavior';
 
@@ -348,9 +349,9 @@ describe('Governor', function () {
             const nonce = await this.mock.nonces(this.userEOA);
 
             function tamper(str, index, mask) {
-              const arrayStr = ethers.getBytes(str);
+              const arrayStr = types.bytes.from(str);
               arrayStr[index] ^= mask;
-              return ethers.hexlify(arrayStr);
+              return arrayStr;
             }
 
             const voteParams = {

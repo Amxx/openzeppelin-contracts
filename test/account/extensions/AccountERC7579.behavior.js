@@ -17,7 +17,7 @@ import {
   EXEC_TYPE_DEFAULT,
   EXEC_TYPE_TRY,
 } from '../../helpers/erc7579';
-import * as random from '../../helpers/random';
+import * as types from '../../helpers/types';
 
 const CALL_TYPE_INVALID = '0x42';
 const EXEC_TYPE_INVALID = '0x17';
@@ -142,7 +142,7 @@ export function shouldBehaveLikeAccountERC7579({ withHooks = false } = {}) {
         withHooks && MODULE_TYPE_HOOK,
       ].filter(Boolean)) {
         const prefix = moduleTypeId == MODULE_TYPE_FALLBACK ? '0x12345678' : '0x';
-        const initData = random.bytes(256);
+        const initData = types.bytes.random(256);
         const fullData = ethers.concat([prefix, initData]);
 
         it(`should install a module of type ${moduleTypeId}`, async function () {
@@ -194,7 +194,7 @@ export function shouldBehaveLikeAccountERC7579({ withHooks = false } = {}) {
 
           it('should call the hook of the installed module when performing an module install', async function () {
             const instance = this.modules[MODULE_TYPE_EXECUTOR];
-            const initData = random.bytes(256);
+            const initData = types.bytes.random(256);
 
             const precheckData = this.mock.interface.encodeFunctionData('installModule', [
               MODULE_TYPE_EXECUTOR,
@@ -231,7 +231,7 @@ export function shouldBehaveLikeAccountERC7579({ withHooks = false } = {}) {
         withHooks && MODULE_TYPE_HOOK,
       ].filter(Boolean)) {
         const prefix = moduleTypeId == MODULE_TYPE_FALLBACK ? '0x12345678' : '0x';
-        const initData = random.bytes(256);
+        const initData = types.bytes.random(256);
         const fullData = ethers.concat([prefix, initData]);
 
         it(`should uninstall a module of type ${moduleTypeId}`, async function () {
@@ -310,7 +310,7 @@ export function shouldBehaveLikeAccountERC7579({ withHooks = false } = {}) {
 
           it('should call the hook of the installed module when performing a module uninstall', async function () {
             const instance = this.modules[MODULE_TYPE_EXECUTOR];
-            const initData = random.bytes(256);
+            const initData = types.bytes.random(256);
 
             const precheckData = this.mock.interface.encodeFunctionData('uninstallModule', [
               MODULE_TYPE_EXECUTOR,
@@ -327,7 +327,7 @@ export function shouldBehaveLikeAccountERC7579({ withHooks = false } = {}) {
 
           it('hook revert during the pre-check prevents uninstalling a non-hook module', async function () {
             const instance = this.modules[MODULE_TYPE_EXECUTOR];
-            const initData = random.bytes(256);
+            const initData = types.bytes.random(256);
 
             // Set the hook to revert on preCheck
             await this.modules[MODULE_TYPE_HOOK].revertOnPreCheck(true);
@@ -339,7 +339,7 @@ export function shouldBehaveLikeAccountERC7579({ withHooks = false } = {}) {
 
           it('hook revert during the post-check prevents uninstalling a non-hook module', async function () {
             const instance = this.modules[MODULE_TYPE_EXECUTOR];
-            const initData = random.bytes(256);
+            const initData = types.bytes.random(256);
 
             // Set the hook to revert on postCheck
             await this.modules[MODULE_TYPE_HOOK].revertOnPostCheck(true);
@@ -351,7 +351,7 @@ export function shouldBehaveLikeAccountERC7579({ withHooks = false } = {}) {
 
           it('can uninstall a hook module that reverts during its pre-check', async function () {
             const instance = this.modules[MODULE_TYPE_HOOK];
-            const initData = random.bytes(256);
+            const initData = types.bytes.random(256);
 
             // Set the hook to revert on preCheck
             await instance.revertOnPreCheck(true);
@@ -368,7 +368,7 @@ export function shouldBehaveLikeAccountERC7579({ withHooks = false } = {}) {
 
           it('can uninstall a hook module that reverts during its post-check', async function () {
             const instance = this.modules[MODULE_TYPE_HOOK];
-            const initData = random.bytes(256);
+            const initData = types.bytes.random(256);
 
             // Set the hook to revert on postCheck
             await instance.revertOnPostCheck(true);
@@ -394,7 +394,7 @@ export function shouldBehaveLikeAccountERC7579({ withHooks = false } = {}) {
 
           it('can uninstall a hook module that reverts during both pre-check and post-check', async function () {
             const instance = this.modules[MODULE_TYPE_HOOK];
-            const initData = random.bytes(256);
+            const initData = types.bytes.random(256);
 
             // Set the hook to revert on preCheck and postCheck
             await instance.revertOnPreCheck(true);
@@ -412,7 +412,7 @@ export function shouldBehaveLikeAccountERC7579({ withHooks = false } = {}) {
 
           it('can uninstall a hook module that has no code (removed delegation)', async function () {
             const instance = this.modules[MODULE_TYPE_HOOK];
-            const initData = random.bytes(256);
+            const initData = types.bytes.random(256);
 
             // Delete the code of the module to simulate a removed delegation
             await this.networkHelpers.setCode(instance.target, '0x');
@@ -589,8 +589,8 @@ export function shouldBehaveLikeAccountERC7579({ withHooks = false } = {}) {
 
           describe('delegate call execution', function () {
             it('delegate calls the target', async function () {
-              const slot = random.bytes32();
-              const value = random.bytes32();
+              const slot = types.bytes32.random();
+              const value = types.bytes32.random();
               const data = encodeDelegate(
                 this.target,
                 this.target.interface.encodeFunctionData('mockFunctionWritesStorage', [slot, value]),

@@ -2,7 +2,7 @@ import { network } from 'hardhat';
 import { expect } from 'chai';
 import { getDomain, domainSeparator, hashTypedData } from '../../helpers/eip712';
 import { formatType } from '../../helpers/eip712-types';
-import * as random from '../../helpers/random';
+import * as types from '../../helpers/types';
 
 const {
   ethers,
@@ -75,7 +75,7 @@ describe('EIP712', function () {
       });
 
       it('hash digest', async function () {
-        const structhash = random.bytes32();
+        const structhash = types.bytes32.random();
         expect(await this.eip712.$_hashTypedDataV4(structhash)).to.equal(hashTypedData(this.domain, structhash));
       });
 

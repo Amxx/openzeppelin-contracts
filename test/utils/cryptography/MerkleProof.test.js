@@ -2,14 +2,14 @@ import { network } from 'hardhat';
 import { expect } from 'chai';
 import { PANIC_CODES } from '@nomicfoundation/hardhat-ethers-chai-matchers/panic';
 import { SimpleMerkleTree } from '@openzeppelin/merkle-tree';
-import * as random from '../../helpers/random';
+import * as types from '../../helpers/types';
 
 const { ethers } = await network.create();
 
 // generate bytes32 leaves from a string
 const toLeaves = (str, separator = '') => str.split(separator).map(e => ethers.keccak256(ethers.toUtf8Bytes(e)));
 // internal node hashes
-const concatSorted = (...elements) => Buffer.concat(elements.map(ethers.getBytes).sort(Buffer.compare));
+const concatSorted = (...elements) => ethers.concat(types.bytes.sort(elements));
 const defaultHash = (a, b) => ethers.keccak256(concatSorted(a, b));
 const customHash = (a, b) => ethers.sha256(concatSorted(a, b));
 
@@ -111,8 +111,8 @@ describe('MerkleProof', function () {
           const hashA = merkleTree.at(0);
           const hashB = merkleTree.at(1);
           const hashCD = nodeHash(merkleTree.at(2), merkleTree.at(3));
-          const hashE = random.bytes32(); // incorrect (not part of the tree)
-          const fill = random.bytes32();
+          const hashE = types.bytes32.random(); // incorrect (not part of the tree)
+          const fill = types.bytes32.random();
 
           await expect(
             this.mock.$processMultiProof([hashB, fill, hashCD], [false, false, false], [hashA, hashE]),
@@ -138,8 +138,8 @@ describe('MerkleProof', function () {
           const hashA = merkleTree.at(0);
           const hashB = merkleTree.at(1);
           const hashCD = nodeHash(merkleTree.at(2), merkleTree.at(3));
-          const hashE = random.bytes32(); // incorrect (not part of the tree)
-          const fill = random.bytes32();
+          const hashE = types.bytes32.random(); // incorrect (not part of the tree)
+          const fill = types.bytes32.random();
 
           await expect(
             this.mock.$processMultiProof([hashB, fill, hashCD], [false, false, false, false], [hashE, hashA]),
@@ -190,10 +190,8 @@ describe('MerkleProof', function () {
           const root = nodeHash(leave, ethers.ZeroHash);
 
           // Now we can pass any **malicious** fake leaves as valid!
-          const maliciousLeaves = ['malicious', 'leaves']
-            .map(ethers.id)
-            .map(id => ethers.toBeArray(id))
-            .sort(Buffer.compare);
+          const maliciousLeaves = types.bytes.sort(['malicious', 'leaves'].map(ethers.id));
+
           const maliciousProof = [leave, leave];
           const maliciousProofFlags = [true, true, false];
 

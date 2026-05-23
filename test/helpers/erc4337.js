@@ -1,7 +1,7 @@
 import { config } from 'hardhat';
 import { ethers } from 'ethers';
 import { ValidationRange } from './enums';
-import * as random from './random';
+import * as types from './types';
 
 export const SIG_VALIDATION_SUCCESS = '0x0000000000000000000000000000000000000000';
 export const SIG_VALIDATION_FAILURE = '0x0000000000000000000000000000000000000001';
@@ -113,8 +113,8 @@ export class UserOperation {
 }
 
 const parseInitCode = initCode => ({
-  factory: '0x' + initCode.replace(/0x/, '').slice(0, 40),
-  factoryData: '0x' + initCode.replace(/0x/, '').slice(40),
+  factory: ethers.getAddress(ethers.dataSlice(initCode, 0, 20)),
+  factoryData: ethers.dataSlice(initCode, 20),
 });
 
 /// Global ERC-4337 environment helper.
@@ -147,7 +147,9 @@ export class ERC4337Helper {
     } else {
       const initCode = await accountFactory
         .getDeployTransaction(...extraArgs)
-        .then(tx => factory.interface.encodeFunctionData('$deploy', [0, params.salt ?? random.bytes32(), tx.data]))
+        .then(tx =>
+          factory.interface.encodeFunctionData('$deploy', [0, params.salt ?? types.bytes32.random(), tx.data]),
+        )
         .then(deployCode => ethers.concat([factory.target, deployCode]));
 
       const instance = await this.connection.ethers.provider
@@ -156,7 +158,7 @@ export class ERC4337Helper {
           to: env.senderCreator,
           data: env.senderCreator.interface.encodeFunctionData('createSender', [initCode]),
         })
-        .then(result => ethers.getAddress(ethers.hexlify(ethers.getBytes(result).slice(-20))))
+        .then(result => ethers.getAddress(ethers.dataSlice(result, -20)))
         .then(address => accountFactory.attach(address));
 
       return new SmartAccount(instance, initCode, env);

@@ -1,7 +1,7 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
 import { PANIC_CODES } from '@nomicfoundation/hardhat-ethers-chai-matchers/panic';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 
 const {
   ethers,
@@ -258,8 +258,8 @@ describe('Address', function () {
 
   describe('functionDelegateCall', function () {
     it('delegate calls the requested function', async function () {
-      const slot = random.bytes32();
-      const value = random.bytes32();
+      const slot = types.bytes32.random();
+      const value = types.bytes32.random();
 
       const call = this.target.interface.encodeFunctionData('mockFunctionWritesStorage', [slot, value]);
 

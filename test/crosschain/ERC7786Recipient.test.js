@@ -1,6 +1,6 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 
 const {
   ethers,
@@ -9,7 +9,7 @@ const {
 } = await network.create();
 
 const value = 42n;
-const payload = random.bytes(128);
+const payload = types.bytes.random(128);
 const attributes = [];
 
 async function fixture() {

@@ -1,7 +1,7 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
 import { PANIC_CODES } from '@nomicfoundation/hardhat-ethers-chai-matchers/panic';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 
 const {
   ethers,
@@ -193,7 +193,7 @@ describe('Strings', function () {
   describe('bytes', function () {
     describe('toHexString', function () {
       for (const length of [0, 17, 20, 32, 42, 64, 512]) {
-        const input = random.bytes(length);
+        const input = types.bytes.random(length);
         it(`hexlify buffer of length ${length}`, async function () {
           expect(await this.mock.getFunction('$toHexString(bytes)')(input)).to.equal(ethers.hexlify(input));
         });

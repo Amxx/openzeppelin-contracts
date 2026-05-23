@@ -1,6 +1,6 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 import { shouldBehaveLikeClone } from './Clones.behaviour';
 
 const connection = await network.create();
@@ -10,20 +10,22 @@ const {
 } = connection;
 
 const cloneInitCode = (instance, args = undefined) =>
-  args
-    ? ethers.concat([
-        '0x61',
-        ethers.toBeHex(0x2d + ethers.getBytes(args).length, 2),
-        '0x3d81600a3d39f3363d3d373d3d3d363d73',
-        instance.target ?? instance.address ?? instance,
-        '0x5af43d82803e903d91602b57fd5bf3',
-        args,
-      ])
-    : ethers.concat([
-        '0x3d602d80600a3d3981f3363d3d373d3d3d363d73',
-        instance.target ?? instance.address ?? instance,
-        '0x5af43d82803e903d91602b57fd5bf3',
-      ]);
+  ethers.concat(
+    args
+      ? [
+          '0x61',
+          ethers.toBeHex(0x2d + ethers.dataLength(args), 2),
+          '0x3d81600a3d39f3363d3d373d3d3d363d73',
+          instance.target ?? instance.address ?? instance,
+          '0x5af43d82803e903d91602b57fd5bf3',
+          args,
+        ]
+      : [
+          '0x3d602d80600a3d3981f3363d3d373d3d3d363d73',
+          instance.target ?? instance.address ?? instance,
+          '0x5af43d82803e903d91602b57fd5bf3',
+        ],
+  );
 
 async function fixture() {
   const [deployer] = await ethers.getSigners();
@@ -55,7 +57,7 @@ async function fixture() {
   const newCloneDeterministic =
     args =>
     async (opts = {}) => {
-      const salt = opts.salt ?? random.bytes32();
+      const salt = opts.salt ?? types.bytes32.random();
       const clone = await (
         args
           ? factory.$cloneDeterministicWithImmutableArgs.staticCall(implementation, args, salt)
@@ -115,7 +117,7 @@ describe('Clones', function () {
         });
 
         it('revert if address already used', async function () {
-          const salt = random.bytes32();
+          const salt = types.bytes32.random();
 
           const deployClone = () =>
             args
@@ -130,7 +132,7 @@ describe('Clones', function () {
         });
 
         it('address prediction', async function () {
-          const salt = random.bytes32();
+          const salt = types.bytes32.random();
 
           const expected = ethers.getCreate2Address(
             this.factory.target,
@@ -165,8 +167,8 @@ describe('Clones', function () {
   it('EIP-170 limit on immutable args', async function () {
     // EIP-170 limits the contract code size to 0x6000
     // This limits the length of immutable args to 0x5fd3
-    const args = random.hexBytes(0x5fd4);
-    const salt = random.bytes32();
+    const args = types.hexBytes.random(0x5fd4);
+    const salt = types.bytes32.random();
 
     await expect(
       this.factory.$predictDeterministicAddressWithImmutableArgs(this.implementation, args, salt),

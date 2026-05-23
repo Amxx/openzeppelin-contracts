@@ -2,7 +2,7 @@ import { network } from 'hardhat';
 import { expect } from 'chai';
 import { addressCoder, nameCoder } from 'interoperable-addresses';
 import { CAIP350, chainTypeCoder } from 'interoperable-addresses/dist/CAIP350';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 
 const {
   ethers,
@@ -67,7 +67,7 @@ describe('ERC7390', function () {
           chainTypeCoder.decode(chainType),
           CAIP350[chainType].reference.decode(reference),
           CAIP350[chainType].address.decode(address),
-        ].map(ethers.hexlify);
+        ].map(types.hexBytes.from);
 
         await expect(this.mock.$parseV1(binary)).to.eventually.deep.equal(expected);
         await expect(this.mock.$parseV1Calldata(binary)).to.eventually.deep.equal(expected);
@@ -175,8 +175,8 @@ describe('ERC7390', function () {
   describe('handles large references and addresses', function () {
     it('large', async function () {
       const chainType = '0x0000';
-      const reference = random.hexBytes(142);
-      const address = random.hexBytes(142);
+      const reference = types.hexBytes.random(142);
+      const address = types.hexBytes.random(142);
 
       const binary = addressCoder.encode({ chainType, reference, address });
 
@@ -196,8 +196,8 @@ describe('ERC7390', function () {
 
     it('very large', async function () {
       const chainType = '0x0000';
-      const reference = random.hexBytes(255);
-      const address = random.hexBytes(255);
+      const reference = types.hexBytes.random(255);
+      const address = types.hexBytes.random(255);
 
       const binary = addressCoder.encode({ chainType, reference, address });
 

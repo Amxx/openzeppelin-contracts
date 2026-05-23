@@ -1,6 +1,6 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 
 const {
   ethers,
@@ -129,7 +129,7 @@ describe('RelayedCall', function () {
 
   describe('random salt', function () {
     beforeEach(async function () {
-      this.salt = random.bytes32();
+      this.salt = types.bytes32.random();
       this.relayer = await this.computeRelayerAddress(this.salt);
     });
 

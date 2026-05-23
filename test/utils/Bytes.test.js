@@ -1,7 +1,7 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
 import { MAX_UINT128, MAX_UINT64, MAX_UINT32, MAX_UINT16 } from '../helpers/constants';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 
 const {
   ethers,
@@ -92,9 +92,9 @@ describe('Bytes', function () {
         'start out of bound': 1000,
       })) {
         it(descr, async function () {
-          const result = ethers.hexlify(lorem.slice(start));
-          await expect(this.mock.$slice(lorem, start)).to.eventually.equal(result);
-          await expect(this.mock.$splice(lorem, start)).to.eventually.equal(result);
+          const result = ethers.getBytes(lorem).slice(start);
+          await expect(this.mock.$slice(lorem, start)).to.eventually.equal(ethers.hexlify(result));
+          await expect(this.mock.$splice(lorem, start)).to.eventually.equal(ethers.hexlify(result));
         });
       }
     });
@@ -108,9 +108,13 @@ describe('Bytes', function () {
         'start > end': [42, 17],
       })) {
         it(descr, async function () {
-          const result = ethers.hexlify(lorem.slice(start, end));
-          await expect(this.mock.$slice(lorem, start, ethers.Typed.uint256(end))).to.eventually.equal(result);
-          await expect(this.mock.$splice(lorem, start, ethers.Typed.uint256(end))).to.eventually.equal(result);
+          const result = ethers.getBytes(lorem).slice(start, end);
+          await expect(this.mock.$slice(lorem, start, ethers.Typed.uint256(end))).to.eventually.equal(
+            ethers.hexlify(result),
+          );
+          await expect(this.mock.$splice(lorem, start, ethers.Typed.uint256(end))).to.eventually.equal(
+            ethers.hexlify(result),
+          );
         });
       }
     });
@@ -122,35 +126,35 @@ describe('Bytes', function () {
     });
 
     it('single item', async function () {
-      const item = random.bytes();
+      const item = types.bytes.random();
       await expect(this.mock.$concat([item])).to.eventually.equal(ethers.concat([item]));
     });
 
     it('multiple (non-empty) items', async function () {
-      const items = Array.from({ length: 17 }, random.bytes);
+      const items = Array.from({ length: 17 }, types.bytes.random);
       await expect(this.mock.$concat(items)).to.eventually.equal(ethers.concat(items));
     });
 
     it('multiple (empty) items', async function () {
-      const items = Array.from({ length: 17 }).fill(new Uint8Array(0));
+      const items = Array.from({ length: 17 }).fill(types.bytes.zero);
       await expect(this.mock.$concat(items)).to.eventually.equal(ethers.concat(items));
     });
 
     it('multiple (variable length) items', async function () {
       const items = [
-        random.bytes.zero,
-        random.bytes(17),
-        random.bytes.zero,
-        random.bytes(42),
-        random.bytes(1),
-        random.bytes(256),
-        random.bytes(1024),
-        random.bytes.zero,
-        random.bytes(7),
-        random.bytes(15),
-        random.bytes(63),
-        random.bytes.zero,
-        random.bytes.zero,
+        types.bytes.zero,
+        types.bytes.random(17),
+        types.bytes.zero,
+        types.bytes.random(42),
+        types.bytes.random(1),
+        types.bytes.random(256),
+        types.bytes.random(1024),
+        types.bytes.zero,
+        types.bytes.random(7),
+        types.bytes.random(15),
+        types.bytes.random(63),
+        types.bytes.zero,
+        types.bytes.zero,
       ];
 
       await expect(this.mock.$concat(items)).to.eventually.equal(ethers.concat(items));
