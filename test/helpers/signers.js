@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { p256 } from '@noble/curves/nist.js';
 import { generateKeyPairSync, privateEncrypt } from 'crypto';
+import { sortBytesByHash } from './iterate';
 
 // Lightweight version of BaseWallet
 export class NonNativeSigner extends ethers.AbstractSigner {
@@ -191,12 +192,7 @@ export class MultiERC7913SigningKey {
     );
 
     // Sorting is done at construction so that it doesn't have to be done in sign()
-    this.#signers = signers.sort((s1, s2) =>
-      Buffer.compare(
-        ethers.getBytes(ethers.keccak256(s1.bytes ?? s1.address)),
-        ethers.getBytes(ethers.keccak256(s2.bytes ?? s2.address)),
-      ),
-    );
+    this.#signers = sortBytesByHash(signers, s => s.bytes ?? s.address);
   }
 
   get signers() {

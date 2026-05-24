@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 // ================================================= Array helpers =================================================
 
 // Cut an array into an array of sized-length arrays
@@ -28,6 +30,13 @@ export const unique = (array, op = x => x) =>
 // Example: zip([1,2],[a,b,c],[true]) → [[1,a,true],[2,b,undefined],[undefined,c,undefined]]
 export const zip = (...args) =>
   Array.from({ length: Math.max(...args.map(arg => arg.length)) }, (_, i) => args.map(arg => arg[i]));
+
+// Sort an array of object, in lexicographical order of their byte representation.
+export const sortBytes = (array, op = x => x) =>
+  array.toSorted((a, b) => Buffer.compare(ethers.getBytes(op(a)), ethers.getBytes(op(b))));
+
+// Sort an array of object, in lexicographical order of the hash of their byte representation.
+export const sortBytesByHash = (array, op = x => x) => sortBytes(array, x => ethers.keccak256(op(x)));
 
 // ================================================ Object helpers =================================================
 

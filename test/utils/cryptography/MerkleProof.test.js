@@ -2,6 +2,7 @@ import { network } from 'hardhat';
 import { expect } from 'chai';
 import { PANIC_CODES } from '@nomicfoundation/hardhat-ethers-chai-matchers/panic';
 import { SimpleMerkleTree } from '@openzeppelin/merkle-tree';
+import { sortBytes } from '../../helpers/iterate';
 import * as types from '../../helpers/types';
 
 const { ethers } = await network.create();
@@ -9,7 +10,7 @@ const { ethers } = await network.create();
 // generate bytes32 leaves from a string
 const toLeaves = (str, separator = '') => str.split(separator).map(e => ethers.keccak256(ethers.toUtf8Bytes(e)));
 // internal node hashes
-const concatSorted = (...elements) => Buffer.concat(elements.map(ethers.getBytes).sort(Buffer.compare));
+const concatSorted = (...elements) => ethers.concat(sortBytes(elements));
 const defaultHash = (a, b) => ethers.keccak256(concatSorted(a, b));
 const customHash = (a, b) => ethers.sha256(concatSorted(a, b));
 
@@ -190,10 +191,7 @@ describe('MerkleProof', function () {
           const root = nodeHash(leave, ethers.ZeroHash);
 
           // Now we can pass any **malicious** fake leaves as valid!
-          const maliciousLeaves = ['malicious', 'leaves']
-            .map(ethers.id)
-            .map(id => ethers.toBeArray(id))
-            .sort(Buffer.compare);
+          const maliciousLeaves = sortBytes(['malicious', 'leaves'].map(ethers.id));
           const maliciousProof = [leave, leave];
           const maliciousProofFlags = [true, true, false];
 
