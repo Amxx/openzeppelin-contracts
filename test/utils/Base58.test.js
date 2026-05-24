@@ -24,9 +24,8 @@ describe('Base58', function () {
         it(
           [length > 32 && '[skip-on-coverage]', `buffer of length ${length}`].filter(Boolean).join(' '),
           async function () {
-            const buffer = types.bytes.random(length);
-            const hex = ethers.hexlify(buffer);
-            const b58 = ethers.encodeBase58(buffer);
+            const hex = types.hex.random(length);
+            const b58 = ethers.encodeBase58(hex);
 
             await expect(this.mock.$encode(hex)).to.eventually.equal(b58);
             await expect(this.mock.$decode(b58)).to.eventually.equal(hex);
@@ -46,8 +45,7 @@ describe('Base58', function () {
         { raw: '0x0000287fb4cd', b58: '11233QC4' },
       ])
         it(raw, async function () {
-          const buffer = (ethers.isHexString(raw) ? ethers.getBytes : ethers.toUtf8Bytes)(raw);
-          const hex = ethers.hexlify(buffer);
+          const hex = ethers.hexlify(ethers.isBytesLike(raw) ? raw : ethers.toUtf8Bytes(raw));
 
           await expect(this.mock.$encode(hex)).to.eventually.equal(b58);
           await expect(this.mock.$decode(b58)).to.eventually.equal(hex);

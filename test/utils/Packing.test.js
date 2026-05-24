@@ -20,14 +20,14 @@ describe('Packing', function () {
 
   describe('pack', function () {
     for (const [size1, size2] of product(SIZES, SIZES).filter(([size1, size2]) => SIZES.includes(size1 + size2))) {
-      const value1 = types.bytes.random(size1);
-      const value2 = types.bytes.random(size2);
+      const value1 = types.hex.random(size1);
+      const value2 = types.hex.random(size2);
       const packed = ethers.concat([value1, value2]);
 
       it(`pack bytes${size1} + bytes${size2} => bytes${size1 + size2}`, async function () {
         expect(await this.mock[`$pack_${size1}_${size2}`](value1, value2)).to.equal(packed);
-        expect(await this.mock[`$extract_${size1 + size2}_${size1}`](packed, 0)).to.equal(ethers.hexlify(value1));
-        expect(await this.mock[`$extract_${size1 + size2}_${size2}`](packed, size1)).to.equal(ethers.hexlify(value2));
+        expect(await this.mock[`$extract_${size1 + size2}_${size1}`](packed, 0)).to.equal(value1);
+        expect(await this.mock[`$extract_${size1 + size2}_${size2}`](packed, size1)).to.equal(value2);
       });
     }
   });
@@ -35,13 +35,13 @@ describe('Packing', function () {
   describe('extract / replace', function () {
     for (const [size1, size2] of product(SIZES, SIZES).filter(([size1, size2]) => size1 > size2)) {
       const MAX_OFFSET = size1 - size2;
-      const offset = ethers.toNumber(types.bytes.random(1)) % (MAX_OFFSET + 1);
-      const outer = types.bytes.random(size1);
-      const value = types.bytes.random(size2);
+      const offset = ethers.toNumber(types.hex.random(1)) % (MAX_OFFSET + 1);
+      const outer = types.hex.random(size1);
+      const value = types.hex.random(size2);
 
       it(`extract bytes${size2} from bytes${size1}`, async function () {
         expect(await this.mock[`$extract_${size1}_${size2}`](outer, offset)).to.equal(
-          ethers.hexlify(outer.slice(offset, offset + size2)),
+          ethers.dataSlice(outer, offset, offset + size2),
         );
 
         await expect(this.mock[`$extract_${size1}_${size2}`](outer, MAX_OFFSET)).to.not.be.revertedWithCustomError(
@@ -57,7 +57,7 @@ describe('Packing', function () {
 
       it(`replace bytes${size2} from bytes${size1}`, async function () {
         expect(await this.mock[`$replace_${size1}_${size2}`](outer, value, offset)).to.equal(
-          ethers.concat([outer.slice(0, offset), value, outer.slice(offset + size2)]),
+          ethers.concat([ethers.dataSlice(outer, 0, offset), value, ethers.dataSlice(outer, offset + size2)]),
         );
 
         await expect(

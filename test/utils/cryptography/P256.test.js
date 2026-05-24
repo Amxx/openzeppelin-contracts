@@ -13,12 +13,12 @@ const N = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
 
 const prepareSignature = (privateKey = p256.utils.randomSecretKey(), messageHash = types.bytes.random(0x20)) => {
   const publicKey = [
-    p256.getPublicKey(privateKey, false).slice(0x01, 0x21),
-    p256.getPublicKey(privateKey, false).slice(0x21, 0x41),
-  ].map(ethers.hexlify);
+    ethers.dataSlice(p256.getPublicKey(privateKey, false), 0x01, 0x21),
+    ethers.dataSlice(p256.getPublicKey(privateKey, false), 0x21, 0x41),
+  ];
 
   const rawSignature = p256.sign(ethers.getBytes(messageHash), privateKey, { prehash: false, format: 'recovered' });
-  const signature = [ethers.hexlify(rawSignature.slice(0x01, 0x21)), ethers.hexlify(rawSignature.slice(0x21, 0x41))];
+  const signature = [ethers.dataSlice(rawSignature, 0x01, 0x21), ethers.dataSlice(rawSignature, 0x21, 0x41)];
   const recovery = rawSignature[0];
 
   return { privateKey, publicKey, signature, recovery, messageHash };

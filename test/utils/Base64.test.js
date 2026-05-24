@@ -29,10 +29,10 @@ describe('Base64', function () {
       { title: 'empty bytes', input: '', expected: '' },
     ])
       it(title, async function () {
-        const buffer = Buffer.from(input, 'ascii');
-        await expect(this.mock.$encode(buffer)).to.eventually.equal(ethers.encodeBase64(buffer));
-        await expect(this.mock.$encode(buffer)).to.eventually.equal(expected);
-        await expect(this.mock.$decode(expected)).to.eventually.equal(ethers.hexlify(buffer));
+        const hex = ethers.hexlify(Buffer.from(input, 'ascii'));
+        await expect(this.mock.$encode(hex)).to.eventually.equal(ethers.encodeBase64(hex));
+        await expect(this.mock.$encode(hex)).to.eventually.equal(expected);
+        await expect(this.mock.$decode(expected)).to.eventually.equal(hex);
       });
   });
 
@@ -46,10 +46,10 @@ describe('Base64', function () {
       { title: 'empty bytes', input: '', expected: '' },
     ])
       it(title, async function () {
-        const buffer = Buffer.from(input, 'ascii');
-        await expect(this.mock.$encodeURL(buffer)).to.eventually.equal(base64toBase64Url(ethers.encodeBase64(buffer)));
-        await expect(this.mock.$encodeURL(buffer)).to.eventually.equal(expected);
-        await expect(this.mock.$decode(expected)).to.eventually.equal(ethers.hexlify(buffer));
+        const hex = ethers.hexlify(Buffer.from(input, 'ascii'));
+        await expect(this.mock.$encodeURL(hex)).to.eventually.equal(base64toBase64Url(ethers.encodeBase64(hex)));
+        await expect(this.mock.$encodeURL(hex)).to.eventually.equal(expected);
+        await expect(this.mock.$decode(expected)).to.eventually.equal(hex);
       });
   });
 

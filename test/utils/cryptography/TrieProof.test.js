@@ -178,14 +178,12 @@ describe('TrieProof', function () {
         await tree.put(ethers.getBytes(slot), ethers.getBytes(value));
       }
 
-      const root = ethers.hexlify(tree.root());
-
       for (const [slot, value] of Object.entries(slots)) {
         const proof = await createMerkleProof(tree, ethers.getBytes(slot));
         expect(proof.length).to.equal(3); // root extension node, branch node, leaf node
 
         // verify the full proof
-        await expect(this.mock.$verify(encodeStorageLeaf(value), root, slot, proof)).to.eventually.be.true;
+        await expect(this.mock.$verify(encodeStorageLeaf(value), tree.root(), slot, proof)).to.eventually.be.true;
 
         // verify the compressed proofs with the inlined node removed (vacuous proof). Last two levels are inlined, so they are optional.
         for (const partialProof of [
@@ -193,7 +191,8 @@ describe('TrieProof', function () {
           [proof[0], proof[1]], // root extension node and branch node (missing leaf node)
           [proof[0], proof[2]], // root extension node and leaf node (missing branch node)
         ]) {
-          await expect(this.mock.$verify(encodeStorageLeaf(value), root, slot, partialProof)).to.eventually.be.true;
+          await expect(this.mock.$verify(encodeStorageLeaf(value), tree.root(), slot, partialProof)).to.eventually.be
+            .true;
         }
       }
     });
@@ -218,14 +217,12 @@ describe('TrieProof', function () {
         await tree.put(ethers.getBytes(slot), ethers.getBytes(value));
       }
 
-      const root = ethers.hexlify(tree.root());
-
       for (const [slot, value] of Object.entries(slots)) {
         const proof = await createMerkleProof(tree, ethers.getBytes(slot));
         expect(proof.length).to.equal(4); // root extension node, branch node, branch node, leaf node
 
         // verify the full proof
-        await expect(this.mock.$verify(encodeStorageLeaf(value), root, slot, proof)).to.eventually.be.true;
+        await expect(this.mock.$verify(encodeStorageLeaf(value), tree.root(), slot, proof)).to.eventually.be.true;
 
         // verify the compressed proofs with the inlined node removed (vacuous proof). Last two levels are inlined, so they are optional.
         for (const partialProof of [
@@ -233,7 +230,8 @@ describe('TrieProof', function () {
           [proof[0], proof[1], proof[2]], // root extension node and both branch nodes (missing leaf node)
           [proof[0], proof[1], proof[3]], // root extension node and first branch node and leaf node (missing second branch node)
         ]) {
-          await expect(this.mock.$verify(encodeStorageLeaf(value), root, slot, partialProof)).to.eventually.be.true;
+          await expect(this.mock.$verify(encodeStorageLeaf(value), tree.root(), slot, partialProof)).to.eventually.be
+            .true;
         }
       }
     });

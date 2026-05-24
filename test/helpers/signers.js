@@ -9,12 +9,7 @@ export class NonNativeSigner extends ethers.AbstractSigner {
 
   constructor(privateKey, provider) {
     super(provider);
-    ethers.assertArgument(
-      privateKey && typeof privateKey.sign === 'function',
-      'invalid private key',
-      'privateKey',
-      '[ REDACTED ]',
-    );
+    ethers.assertArgument(typeof privateKey?.sign === 'function', 'invalid private key', 'privateKey', '[ REDACTED ]');
     this.#signingKey = privateKey;
   }
 
@@ -87,7 +82,7 @@ export class P256SigningKey {
   sign(digest /*: BytesLike*/) /*: ethers.Signature*/ {
     ethers.assertArgument(ethers.dataLength(digest) === 32, 'invalid digest length', 'digest', digest);
 
-    const rawSignature = p256.sign(ethers.getBytes(digest), ethers.getBytes(this.#privateKey), {
+    const rawSignature = p256.sign(ethers.getBytes(digest), this.#privateKey, {
       prehash: false,
       format: 'recovered',
     });
@@ -139,7 +134,7 @@ export class RSASigningKey {
 export class RSASHA256SigningKey extends RSASigningKey {
   sign(digest /*: BytesLike*/) /*: ethers.Signature*/ {
     ethers.assertArgument(ethers.dataLength(digest) === 32, 'invalid digest length', 'digest', digest);
-    return super.sign(ethers.sha256(ethers.getBytes(digest)));
+    return super.sign(ethers.sha256(digest));
   }
 }
 

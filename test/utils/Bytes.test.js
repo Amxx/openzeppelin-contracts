@@ -132,7 +132,7 @@ describe('Bytes', function () {
     });
 
     it('multiple (empty) items', async function () {
-      const items = Array.from({ length: 17 }).fill(new Uint8Array(0));
+      const items = Array.from({ length: 17 }, () => types.bytes.zero);
       await expect(this.mock.$concat(items)).to.eventually.equal(ethers.concat(items));
     });
 
