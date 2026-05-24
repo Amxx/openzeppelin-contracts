@@ -2,7 +2,7 @@ import { network } from 'hardhat';
 import { expect } from 'chai';
 import { Permit } from '../../helpers/eip712';
 import { ERC4337Utils, PersonalSign } from '../../helpers/erc7739';
-import * as random from '../../helpers/random';
+import * as types from '../../helpers/types';
 
 const {
   ethers,
@@ -42,7 +42,7 @@ describe('ERC7739Utils', function () {
 
   describe('encodeTypedDataSig', function () {
     it('wraps a typed data signature', async function () {
-      const signature = random.bytes(65);
+      const signature = types.bytes.random(65);
       const appSeparator = ethers.id('SomeApp');
       const contentsHash = ethers.id('SomeData');
       const contentsDescr = 'SomeType()';
@@ -62,7 +62,7 @@ describe('ERC7739Utils', function () {
 
   describe('decodeTypedDataSig', function () {
     it('unwraps a typed data signature', async function () {
-      const signature = random.bytes(65);
+      const signature = types.bytes.random(65);
       const appSeparator = ethers.id('SomeApp');
       const contentsHash = ethers.id('SomeData');
       const contentsDescr = 'SomeType()';
@@ -83,7 +83,7 @@ describe('ERC7739Utils', function () {
     });
 
     it('returns default empty values if the signature is too short', async function () {
-      const encoded = random.bytes(65); // DOMAIN_SEPARATOR (32 bytes) + CONTENTS (32 bytes) + CONTENTS_TYPE_LENGTH (2 bytes) - 1
+      const encoded = types.bytes.random(65); // DOMAIN_SEPARATOR (32 bytes) + CONTENTS (32 bytes) + CONTENTS_TYPE_LENGTH (2 bytes) - 1
       await expect(this.mock.$decodeTypedDataSig(encoded)).to.eventually.deep.equal([
         '0x',
         ethers.ZeroHash,
@@ -93,7 +93,7 @@ describe('ERC7739Utils', function () {
     });
 
     it('returns default empty values if the length is invalid', async function () {
-      const encoded = ethers.concat([random.bytes(64), '0x3f']); // Can't be less than 64 bytes
+      const encoded = ethers.concat([types.bytes.random(64), '0x3f']); // Can't be less than 64 bytes
       await expect(this.mock.$decodeTypedDataSig(encoded)).to.eventually.deep.equal([
         '0x',
         ethers.ZeroHash,

@@ -2,7 +2,7 @@ import fs from 'fs';
 import { network } from 'hardhat';
 import { expect } from 'chai';
 import { p256 } from '@noble/curves/nist.js';
-import * as random from '../../helpers/random';
+import * as types from '../../helpers/types';
 
 const {
   ethers,
@@ -11,7 +11,7 @@ const {
 
 const N = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
 
-const prepareSignature = (privateKey = p256.utils.randomSecretKey(), messageHash = random.bytes(0x20)) => {
+const prepareSignature = (privateKey = p256.utils.randomSecretKey(), messageHash = types.bytes.random(0x20)) => {
   const publicKey = [
     p256.getPublicKey(privateKey, false).slice(0x01, 0x21),
     p256.getPublicKey(privateKey, false).slice(0x21, 0x41),
@@ -119,7 +119,7 @@ describe('P256', function () {
 
     it('reject signature with invalid message hash', async function () {
       // random message hash
-      this.messageHash = random.bytes(32);
+      this.messageHash = types.bytes.random(32);
 
       await expect(this.mock.$verify(this.messageHash, ...this.signature, ...this.publicKey)).to.eventually.be.false;
       await expect(this.mock.$verifySolidity(this.messageHash, ...this.signature, ...this.publicKey)).to.eventually.be

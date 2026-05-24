@@ -1,7 +1,7 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
 import { MAX_UINT128, MAX_UINT64, MAX_UINT32, MAX_UINT16 } from '../helpers/constants';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 
 const {
   ethers,
@@ -122,12 +122,12 @@ describe('Bytes', function () {
     });
 
     it('single item', async function () {
-      const item = random.bytes();
+      const item = types.bytes.random();
       await expect(this.mock.$concat([item])).to.eventually.equal(ethers.concat([item]));
     });
 
     it('multiple (non-empty) items', async function () {
-      const items = Array.from({ length: 17 }, random.bytes);
+      const items = Array.from({ length: 17 }, types.bytes.random);
       await expect(this.mock.$concat(items)).to.eventually.equal(ethers.concat(items));
     });
 
@@ -138,19 +138,19 @@ describe('Bytes', function () {
 
     it('multiple (variable length) items', async function () {
       const items = [
-        random.bytes.zero,
-        random.bytes(17),
-        random.bytes.zero,
-        random.bytes(42),
-        random.bytes(1),
-        random.bytes(256),
-        random.bytes(1024),
-        random.bytes.zero,
-        random.bytes(7),
-        random.bytes(15),
-        random.bytes(63),
-        random.bytes.zero,
-        random.bytes.zero,
+        types.bytes.zero,
+        types.bytes.random(17),
+        types.bytes.zero,
+        types.bytes.random(42),
+        types.bytes.random(1),
+        types.bytes.random(256),
+        types.bytes.random(1024),
+        types.bytes.zero,
+        types.bytes.random(7),
+        types.bytes.random(15),
+        types.bytes.random(63),
+        types.bytes.zero,
+        types.bytes.zero,
       ];
 
       await expect(this.mock.$concat(items)).to.eventually.equal(ethers.concat(items));

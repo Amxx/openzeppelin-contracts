@@ -1,6 +1,6 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 
 const {
   ethers,
@@ -13,10 +13,10 @@ const otherSlot = ethers.id('some.other.storage.slot');
 // Non-value types are not supported by the `TransientSlot` library.
 const TYPES = [
   { name: 'Boolean', type: 'bool', value: true, zero: false },
-  { name: 'Address', type: 'address', value: random.address(), zero: random.address.zero },
-  { name: 'Bytes32', type: 'bytes32', value: random.bytes32(), zero: random.bytes32.zero },
-  { name: 'Uint256', type: 'uint256', value: random.uint256(), zero: random.uint256.zero },
-  { name: 'Int256', type: 'int256', value: random.int256(), zero: random.int256.zero },
+  { name: 'Address', type: 'address', value: types.address.random(), zero: types.address.zero },
+  { name: 'Bytes32', type: 'bytes32', value: types.bytes32.random(), zero: types.bytes32.zero },
+  { name: 'Uint256', type: 'uint256', value: types.uint256.random(), zero: types.uint256.zero },
+  { name: 'Int256', type: 'int256', value: types.int256.random(), zero: types.int256.zero },
 ];
 
 async function fixture() {

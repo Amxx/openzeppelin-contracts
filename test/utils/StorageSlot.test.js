@@ -1,6 +1,6 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 
 const {
   ethers,
@@ -12,11 +12,11 @@ const otherSlot = ethers.id('some.other.storage.slot');
 
 const TYPES = [
   { name: 'Boolean', type: 'bool', value: true, isValueType: true, zero: false },
-  { name: 'Address', type: 'address', value: random.address(), isValueType: true, zero: random.address.zero },
-  { name: 'Bytes32', type: 'bytes32', value: random.bytes32(), isValueType: true, zero: random.bytes32.zero },
-  { name: 'Uint256', type: 'uint256', value: random.uint256(), isValueType: true, zero: random.uint256.zero },
-  { name: 'Int256', type: 'int256', value: random.int256(), isValueType: true, zero: random.int256.zero },
-  { name: 'Bytes', type: 'bytes', value: random.hexBytes(128), isValueType: false, zero: random.hexBytes.zero },
+  { name: 'Address', type: 'address', value: types.address.random(), isValueType: true, zero: types.address.zero },
+  { name: 'Bytes32', type: 'bytes32', value: types.bytes32.random(), isValueType: true, zero: types.bytes32.zero },
+  { name: 'Uint256', type: 'uint256', value: types.uint256.random(), isValueType: true, zero: types.uint256.zero },
+  { name: 'Int256', type: 'int256', value: types.int256.random(), isValueType: true, zero: types.int256.zero },
+  { name: 'Bytes', type: 'bytes', value: types.hex.random(128), isValueType: false, zero: types.hex.zero },
   { name: 'String', type: 'string', value: 'lorem ipsum', isValueType: false, zero: '' },
 ];
 

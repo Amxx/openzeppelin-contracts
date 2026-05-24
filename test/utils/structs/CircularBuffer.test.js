@@ -1,7 +1,7 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
 import { PANIC_CODES } from '@nomicfoundation/hardhat-ethers-chai-matchers/panic';
-import * as random from '../../helpers/random';
+import * as types from '../../helpers/types';
 
 const {
   ethers,
@@ -33,7 +33,7 @@ describe('CircularBuffer', function () {
   });
 
   it('push', async function () {
-    const values = Array.from({ length: LENGTH + 3 }, random.bytes32);
+    const values = Array.from({ length: LENGTH + 3 }, types.bytes32.random);
 
     for (const [i, value] of values.map((v, i) => [i, v])) {
       // push value
@@ -68,7 +68,7 @@ describe('CircularBuffer', function () {
   });
 
   it('clear', async function () {
-    const value = random.bytes32();
+    const value = types.bytes32.random();
     await this.mock.$push(0, value);
 
     expect(await this.mock.$count(0)).to.equal(1n);

@@ -1,7 +1,7 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
 import { product } from '../helpers/iterate';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 import { SIZES } from '../../scripts/generate/templates/Packing.opts';
 
 const {
@@ -20,8 +20,8 @@ describe('Packing', function () {
 
   describe('pack', function () {
     for (const [size1, size2] of product(SIZES, SIZES).filter(([size1, size2]) => SIZES.includes(size1 + size2))) {
-      const value1 = random.bytes(size1);
-      const value2 = random.bytes(size2);
+      const value1 = types.bytes.random(size1);
+      const value2 = types.bytes.random(size2);
       const packed = ethers.concat([value1, value2]);
 
       it(`pack bytes${size1} + bytes${size2} => bytes${size1 + size2}`, async function () {
@@ -35,9 +35,9 @@ describe('Packing', function () {
   describe('extract / replace', function () {
     for (const [size1, size2] of product(SIZES, SIZES).filter(([size1, size2]) => size1 > size2)) {
       const MAX_OFFSET = size1 - size2;
-      const offset = ethers.toNumber(random.bytes(1)) % (MAX_OFFSET + 1);
-      const outer = random.bytes(size1);
-      const value = random.bytes(size2);
+      const offset = ethers.toNumber(types.bytes.random(1)) % (MAX_OFFSET + 1);
+      const outer = types.bytes.random(size1);
+      const value = types.bytes.random(size2);
 
       it(`extract bytes${size2} from bytes${size1}`, async function () {
         expect(await this.mock[`$extract_${size1}_${size2}`](outer, offset)).to.equal(

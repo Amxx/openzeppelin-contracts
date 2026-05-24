@@ -1,6 +1,6 @@
 import { network } from 'hardhat';
 import { expect } from 'chai';
-import * as random from '../helpers/random';
+import * as types from '../helpers/types';
 import { capitalize } from '../helpers/strings';
 import { TYPES } from '../../scripts/generate/templates/Arrays.opts';
 
@@ -26,7 +26,7 @@ const comparator = (a, b) => bigintSign(ethers.toBigInt(a) - ethers.toBigInt(b))
 const hasDuplicates = array => array.some((v, i) => array.indexOf(v) != i);
 
 // Chai matchers expect hexadecimal data when dealing with bytes
-const randomOf = type => random[type === 'bytes' ? 'hexBytes' : type];
+const typeAlias = type => types[type === 'bytes' ? 'hex' : type];
 
 async function fixture() {
   return { mock: await ethers.deployContract('$Arrays') };
@@ -126,7 +126,7 @@ describe('Arrays', function () {
   });
 
   for (const { name, isValueType } of TYPES) {
-    const elements = Array.from({ length: 10 }, randomOf(name));
+    const elements = Array.from({ length: 10 }, typeAlias(name).random);
 
     describe(name, function () {
       const fixture = async () => {
@@ -142,7 +142,7 @@ describe('Arrays', function () {
           for (const length of [0, 1, 2, 8, 32, 128]) {
             describe(`${name}[] of length ${length}`, function () {
               beforeEach(async function () {
-                this.array = Array.from({ length }, randomOf(name));
+                this.array = Array.from({ length }, typeAlias(name).random);
               });
 
               afterEach(async function () {
@@ -183,7 +183,7 @@ describe('Arrays', function () {
         });
 
         for (const fn of ['slice', 'splice']) {
-          const array = Array.from({ length: 10 }, randomOf(name));
+          const array = Array.from({ length: 10 }, typeAlias(name).random);
 
           describe(fn, function () {
             const fragment = `$${fn}(${name}[] arr, uint256 start)`;
@@ -253,7 +253,7 @@ describe('Arrays', function () {
           });
 
           it('unsafeSetLength changes the length or the array', async function () {
-            const newLength = random.uint256();
+            const newLength = types.uint256.random();
 
             await expect(this.instance.length()).to.eventually.equal(elements.length);
             await expect(this.instance.unsafeSetLength(newLength)).to.not.be.rejected;
@@ -277,7 +277,7 @@ describe('Arrays', function () {
           it('unsafeMemoryAccess loop around', async function () {
             for (let i = 251n; i < 256n; ++i) {
               await expect(this.mock[fragment](elements, 2n ** i - 1n)).to.eventually.equal(
-                isValueType ? BigInt(elements.length) : randomOf(name).zero,
+                isValueType ? BigInt(elements.length) : typeAlias(name).zero,
               );
               await expect(this.mock[fragment](elements, 2n ** i + 0n)).to.eventually.equal(elements[0]);
               await expect(this.mock[fragment](elements, 2n ** i + 1n)).to.eventually.equal(elements[1]);

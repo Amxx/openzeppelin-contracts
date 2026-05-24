@@ -1,6 +1,6 @@
 import { network } from 'hardhat';
 import { mapValues } from '../../helpers/iterate';
-import * as random from '../../helpers/random';
+import * as types from '../../helpers/types';
 import { MAP_TYPES, typeDescr, toMapTypeDescr } from '../../../scripts/generate/templates/Enumerable.opts';
 import { shouldBehaveLikeMap } from './EnumerableMap.behavior';
 
@@ -13,7 +13,7 @@ const {
 MAP_TYPES.unshift(toMapTypeDescr({ key: typeDescr({ type: 'bytes32' }), value: typeDescr({ type: 'bytes32' }) }));
 
 // Chai matchers expect hexadecimal data when dealing with bytes
-const randomOf = type => random[type === 'bytes' ? 'hexBytes' : type];
+const typeAlias = type => types[type === 'bytes' ? 'hex' : type];
 
 async function fixture() {
   const mock = await ethers.deployContract('$EnumerableMap');
@@ -24,9 +24,9 @@ async function fixture() {
       {
         key,
         value,
-        keys: Array.from({ length: 3 }, randomOf(key.type)),
-        values: Array.from({ length: 3 }, randomOf(value.type)),
-        zeroValue: randomOf(value.type).zero,
+        keys: Array.from({ length: 3 }, typeAlias(key.type).random),
+        values: Array.from({ length: 3 }, typeAlias(value.type).random),
+        zeroValue: typeAlias(value.type).zero,
         methods: mapValues(
           MAP_TYPES.filter(map => map.key.name == key.name).length == 1
             ? {
