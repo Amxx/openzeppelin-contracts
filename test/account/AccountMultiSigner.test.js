@@ -2,10 +2,11 @@ const { ethers, predeploy } = require('hardhat');
 const { expect } = require('chai');
 const { loadFixture } = require('@nomicfoundation/hardhat-network-helpers');
 
+const { MAX_UINT64 } = require('../helpers/constants');
 const { getDomain } = require('../helpers/eip712');
 const { ERC4337Helper } = require('../helpers/erc4337');
+const { sortBytesByHash } = require('../helpers/iterate');
 const { NonNativeSigner, P256SigningKey, RSASHA256SigningKey, MultiERC7913SigningKey } = require('../helpers/signers');
-const { MAX_UINT64 } = require('../helpers/constants');
 
 const { shouldBehaveLikeAccountCore, shouldBehaveLikeAccountHolder } = require('./Account.behavior');
 const { shouldBehaveLikeERC1271 } = require('../utils/cryptography/ERC1271.behavior');
@@ -218,14 +219,6 @@ describe('AccountMultiSigner', function () {
     const TEST_MESSAGE = 'Test message';
     const MESSAGE_HASH = ethers.hashMessage(TEST_MESSAGE);
 
-    const sortSigners = signers =>
-      signers.sort((a, b) =>
-        Buffer.compare(
-          ethers.getBytes(ethers.keccak256(a.address ?? a)),
-          ethers.getBytes(ethers.keccak256(b.address ?? b)),
-        ),
-      );
-
     const prepareMultisig = (signers, signatures) =>
       ethers.AbiCoder.defaultAbiCoder().encode(['bytes[]', 'bytes[]'], [signers.map(s => s.address ?? s), signatures]);
 
@@ -236,7 +229,7 @@ describe('AccountMultiSigner', function () {
     });
 
     it('accepts signatures from authorized signers', async function () {
-      const signers = sortSigners([signerECDSA1, signerECDSA2]);
+      const signers = sortBytesByHash([signerECDSA1, signerECDSA2], s => s.address);
       const signatures = await Promise.all(signers.map(s => s.signMessage(TEST_MESSAGE)));
 
       // Should pass because all signers are authorized.
@@ -245,7 +238,7 @@ describe('AccountMultiSigner', function () {
     });
 
     it('rejects signatures from unauthorized signers', async function () {
-      const signers = sortSigners([signerECDSA1, signerECDSA4]); // signerECDSA4 is unauthorized
+      const signers = sortBytesByHash([signerECDSA1, signerECDSA4], s => s.address); // signerECDSA4 is unauthorized
       const signatures = await Promise.all(signers.map(s => s.signMessage(TEST_MESSAGE)));
 
       // Should fail because one signer is not authorized
@@ -254,7 +247,7 @@ describe('AccountMultiSigner', function () {
     });
 
     it('rejects invalid signatures from authorized signers', async function () {
-      const signers = sortSigners([signerECDSA1, signerECDSA2]);
+      const signers = sortBytesByHash([signerECDSA1, signerECDSA2], s => s.address);
       const signatures = await Promise.all(
         signers.map((s, i) => s.signMessage(i === 0 ? 'Invalid message' : TEST_MESSAGE)), // first signature is invalid
       );
@@ -265,7 +258,7 @@ describe('AccountMultiSigner', function () {
     });
 
     it('accepts signatures from unsorted signers', async function () {
-      const signers = sortSigners([signerECDSA1, signerECDSA2]).reverse(); // Unsorted signers
+      const signers = sortBytesByHash([signerECDSA1, signerECDSA2], s => s.address).reverse(); // Unsorted signers
       const signatures = await Promise.all(signers.map(s => s.signMessage(TEST_MESSAGE)));
 
       // Should pass because signatures are valid even if signers are unsorted
@@ -274,7 +267,7 @@ describe('AccountMultiSigner', function () {
     });
 
     it('rejects signatures when signers.length != signatures.length', async function () {
-      const signers = sortSigners([signerECDSA1, signerECDSA2]);
+      const signers = sortBytesByHash([signerECDSA1, signerECDSA2], s => s.address);
       const signatures = await Promise.all(signers.slice(0, -1).map(s => s.signMessage(TEST_MESSAGE))); // slice the last signer
 
       // Should fail because signers and signatures arrays have different lengths
@@ -283,7 +276,7 @@ describe('AccountMultiSigner', function () {
     });
 
     it('rejects duplicated signers', async function () {
-      const signers = sortSigners([signerECDSA1, signerECDSA1]); // duplicated signer
+      const signers = sortBytesByHash([signerECDSA1, signerECDSA1], s => s.address); // duplicated signer
       const signatures = await Promise.all(signers.map(s => s.signMessage(TEST_MESSAGE)));
 
       // Should fail because of duplicated signers

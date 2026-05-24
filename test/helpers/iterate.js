@@ -1,3 +1,5 @@
+const { ethers } = require('ethers');
+
 module.exports = {
   // ================================================= Array helpers =================================================
 
@@ -27,6 +29,19 @@ module.exports = {
   // Zip arrays together. If some arrays are smaller, undefined is used as a filler.
   // Example: zip([1,2],[a,b,c],[true]) → [[1,a,true],[2,b,undefined],[undefined,c,undefined]]
   zip: (...args) => Array.from({ length: Math.max(...args.map(arg => arg.length)) }, (_, i) => args.map(arg => arg[i])),
+
+  // Sort an array of object, in lexicographical order of their byte representation.
+  sortBytes: (array, op = x => x) =>
+    array.toSorted((a, b) => Buffer.compare(ethers.getBytes(op(a)), ethers.getBytes(op(b)))),
+
+  // Sort an array of object, in lexicographical order of the hash of their byte representation.
+  sortBytesByHash: (array, op = x => x) =>
+    array.toSorted((a, b) =>
+      Buffer.compare(
+        ethers.getBytes(ethers.keccak256(ethers.getBytes(op(a)))),
+        ethers.getBytes(ethers.keccak256(ethers.getBytes(op(b)))),
+      ),
+    ),
 
   // ================================================ Object helpers =================================================
 
