@@ -100,11 +100,12 @@ library RateLimiter {
         bytes32 key
     ) internal view returns (uint256 used_, uint256 available_) {
         uint208 capacity_ = self._capacity; // cache
-        RefillingBucketItem storage item_ = self._items[key]; // cache
+        uint48 window_ = self._window; // cache (same slot as capacity_)
+        RefillingBucketItem storage item_ = self._items[key];
 
         used_ = Math.saturatingSub(
             item_._lastUsed,
-            Math.mulDiv(Time.timestamp() - item_._lastTimepoint, capacity_, Math.max(self._window, 1))
+            Math.mulDiv(Time.timestamp() - item_._lastTimepoint, capacity_, Math.max(window_, 1))
         );
         available_ = Math.saturatingSub(capacity_, used_);
     }
