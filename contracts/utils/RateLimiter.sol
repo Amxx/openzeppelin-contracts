@@ -135,9 +135,10 @@ library RateLimiter {
         }
         (uint256 used_, uint256 available_) = state(self, key);
         if (quantity <= available_) {
+            // used_ + quantity <= available_ + used_ == capacity_ <= type(uint208).max, so the cast cannot overflow
             self._items[key] = RefillingBucketItem({
                 _lastTimepoint: Time.timestamp(),
-                _lastUsed: SafeCast.toUint208(used_ + quantity)
+                _lastUsed: uint208(used_ + quantity)
             });
             return true;
         } else {
