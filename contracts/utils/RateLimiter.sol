@@ -259,11 +259,14 @@ library RateLimiter {
         }
         (uint256 used_, uint256 available_) = state(self, key);
         if (quantity <= available_) {
-            if (used_ == 0) {
-                reset(self, key);
-            }
             Checkpoints.Trace208 storage item_ = self._items[key]; // cache
-            item_.push(Time.timestamp(), SafeCast.toUint208(item_.latest() + quantity));
+            uint256 total_ = quantity;
+            if (used_ == 0) {
+                reset(self, key); // latest() is 0 after reset
+            } else {
+                total_ += item_.latest();
+            }
+            item_.push(Time.timestamp(), SafeCast.toUint208(total_));
             return true;
         } else {
             return false;
