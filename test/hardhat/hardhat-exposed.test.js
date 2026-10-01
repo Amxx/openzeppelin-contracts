@@ -8,8 +8,6 @@ import hardhatExposed from '../../hardhat/hardhat-exposed/plugin.ts';
 const contract = name => `// SPDX-License-Identifier: MIT\npragma solidity ^0.8.20;\n\ncontract ${name} {}\n`;
 
 describe('hardhat-exposed stale files', function () {
-  this.timeout(120_000);
-
   beforeEach(function () {
     this.root = fs.mkdtempSync(path.join(os.tmpdir(), 'hardhat-exposed-'));
     fs.mkdirSync(path.join(this.root, 'contracts'));
